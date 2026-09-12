@@ -1,3340 +1,860 @@
-const API_URL = "https://seerchsqapi.darkyproton.workers.dev";
+const API_URL="https://seerchsqapi.darkyproton.workers.dev";
+const DB_NAME="seerchsq-local";
+const DB_VERSION=1;
+const QUOTES=[
+{t:"The important thing is to keep asking better questions.",a:"SEErch²"},
+{t:"Curiosity turns a search into a discovery.",a:"SEErch²"},
+{t:"A useful answer starts with a precise question.",a:"SEErch²"},
+{t:"Build tools that make the next question easier.",a:"SEErch²"},
+{t:"Good search finds information. Better search helps you explore.",a:"SEErch²"},
+{t:"Make the interface yours, then make the search yours.",a:"SEErch²"},
+{t:"Small improvements compound into better tools.",a:"SEErch²"}
+];
 
-const OPEN_METEO_GEOCODING =
-    "https://geocoding-api.open-meteo.com/v1/search";
-
-const OPEN_METEO_FORECAST =
-    "https://api.open-meteo.com/v1/forecast";
-
-const ALPHA_VANTAGE_API =
-    "https://www.alphavantage.co/query";
-
-const DEFAULT_SETTINGS = {
-    theme: "system",
-    font: "system",
-    accent: "#2563eb",
-    customTheme: {
-        background: "#ffffff",
-        surface: "#f7f7f7",
-        text: "#111111",
-        muted: "#666666"
-    },
-    resultMode: "infinite",
-    historyEnabled: false,
-    safeSearch: "normal",
-    mode: "default",
-    weatherLocation: null,
-    stockProvider: "alphavantage",
-    stockApiKey: "",
-    stockSymbols: [],
-    customModes: [],
-    layout: {
-        widgets: []
-    }
+const DEFAULT_SETTINGS={
+theme:"system",
+font:"Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,\"Segoe UI\",sans-serif",
+colors:{bg:"#f4f5f7",surface:"#ffffff",surface2:"#eceef2",text:"#15171a",muted:"#686d75",border:"#d9dce1",accent:"#2f6fed",accentText:"#ffffff"},
+customCss:"",
+customCssEnabled:false,
+wallpaper:null,
+wallpaperEnabled:false,
+wallpaperDim:.25,
+music:null,
+musicEnabled:false,
+musicVolume:.18,
+musicLoop:true,
+historyEnabled:true,
+historyLimit:100,
+resultMode:"infinite",
+safeSearch:"normal",
+mode:"default",
+customModes:[],
+ai:{enabled:false,provider:"openai",baseUrl:"https://api.openai.com/v1/chat/completions",apiKey:"",model:""},
+easterEggs:true,
+homepageLayout:[
+{id:"quote",type:"quote",span:12,visible:true},
+{id:"weather",type:"weather",span:6,visible:true},
+{id:"stocks",type:"stocks",span:6,visible:true}
+],
+resultsLayout:{showScores:true,showDescriptions:true,showUrls:true,compact:false},
+widgetScripts:[]
 };
 
-let settings = loadSettings();
-
-const state = {
-    query: "",
-    tab: "web",
-    results: [],
-    mediaResults: {
-        images: [],
-        videos: []
-    },
-    page: 1,
-    pageSize: 20,
-    hasMore: true,
-    loading: false,
-    searchToken: 0,
-    customization: false,
-    draggedElement: null,
-    imageItems: [],
-    videoItems: []
+let settings=null;
+let db=null;
+let state={
+page:"home",
+query:"",
+tab:"web",
+pageNumber:1,
+limit:20,
+results:[],
+loading:false,
+hasMore:true,
+searchToken:0,
+weather:null,
+stocks:[],
+audio:null,
+easterEggBuffer:""
 };
 
-const elements = {};
-
-document.addEventListener("DOMContentLoaded", initialize);
-
-function initialize() {
-    cacheElements();
-    loadCustomFont();
-    populateCustomModes();
-    applySettings();
-    populateSettingsUI();
-    applySavedLayout();
-    bindEvents();
-    initializeHome();
-}
-
-function cacheElements() {
-    elements.homePage = document.getElementById("homePage");
-    elements.resultsPage = document.getElementById("resultsPage");
-
-    elements.homeSearchForm = document.getElementById("homeSearchForm");
-    elements.homeSearchInput = document.getElementById("homeSearchInput");
-
-    elements.topSearchWrap = document.getElementById("topSearchWrap");
-    elements.topSearchForm = document.getElementById("topSearchForm");
-    elements.topSearchInput = document.getElementById("topSearchInput");
-
-    elements.brand = document.getElementById("brand");
-
-    elements.settingsButton = document.getElementById("settingsButton");
-    elements.closeSettingsButton = document.getElementById("closeSettingsButton");
-    elements.settingsPanel = document.getElementById("settingsPanel");
-    elements.settingsBackdrop = document.getElementById("settingsBackdrop");
-
-    elements.resultsContainer = document.getElementById("resultsContainer");
-    elements.resultsMeta = document.getElementById("resultsMeta");
-    elements.resultsStatus = document.getElementById("resultsStatus");
-
-    elements.loadMoreArea = document.getElementById("loadMoreArea");
-    elements.loadMoreButton = document.getElementById("loadMoreButton");
-
-    elements.pageNavigation = document.getElementById("pageNavigation");
-    elements.previousPageButton = document.getElementById("previousPageButton");
-    elements.nextPageButton = document.getElementById("nextPageButton");
-    elements.pageNumber = document.getElementById("pageNumber");
-
-    elements.themeSelect = document.getElementById("themeSelect");
-    elements.fontSelect = document.getElementById("fontSelect");
-    elements.accentColorInput = document.getElementById("accentColorInput");
-
-    elements.customThemeButton =
-        document.getElementById("customThemeButton");
-
-    elements.fontImportButton =
-        document.getElementById("fontImportButton");
-
-    elements.fontFileInput =
-        document.getElementById("fontFileInput");
-
-    elements.resultModeSelect =
-        document.getElementById("resultModeSelect");
-
-    elements.historyEnabledInput =
-        document.getElementById("historyEnabledInput");
-
-    elements.clearHistoryButton =
-        document.getElementById("clearHistoryButton");
-
-    elements.safeSearchSelect =
-        document.getElementById("safeSearchSelect");
-
-    elements.truthWarning =
-        document.getElementById("truthWarning");
-
-    elements.weatherSettingsAction =
-        document.getElementById("weatherSettingsAction");
-
-    elements.weatherUseLocationButton =
-        document.getElementById("weatherUseLocationButton");
-
-    elements.weatherRemoveButton =
-        document.getElementById("weatherRemoveButton");
-
-    elements.stockProviderSelect =
-        document.getElementById("stockProviderSelect");
-
-    elements.stockApiKeyInput =
-        document.getElementById("stockApiKeyInput");
-
-    elements.stockSymbolsInput =
-        document.getElementById("stockSymbolsInput");
-
-    elements.saveStocksButton =
-        document.getElementById("saveStocksButton");
-
-    elements.refreshStocksButton =
-        document.getElementById("refreshStocksButton");
-
-    elements.modeSelect =
-        document.getElementById("modeSelect");
-
-    elements.createModeButton =
-        document.getElementById("createModeButton");
-
-    elements.customizeUiButton =
-        document.getElementById("customizeUiButton");
-
-    elements.saveLayoutButton =
-        document.getElementById("saveLayoutButton");
-
-    elements.cancelLayoutButton =
-        document.getElementById("cancelLayoutButton");
-
-    elements.exportSettingsButton =
-        document.getElementById("exportSettingsButton");
-
-    elements.importSettingsButton =
-        document.getElementById("importSettingsButton");
-
-    elements.settingsFileInput =
-        document.getElementById("settingsFileInput");
-
-    elements.resetSettingsButton =
-        document.getElementById("resetSettingsButton");
-
-    elements.weatherLocationName =
-        document.getElementById("weatherLocationName");
-
-    elements.weatherContent =
-        document.getElementById("weatherContent");
-
-    elements.weatherAddButton =
-        document.getElementById("weatherAddButton");
-
-    elements.weatherSettingsButton =
-        document.getElementById("weatherSettingsButton");
-
-    elements.stocksContent =
-        document.getElementById("stocksContent");
-
-    elements.stockSettingsButton =
-        document.getElementById("stockSettingsButton");
-
-    elements.stockAddButton =
-        document.getElementById("stockAddButton");
-
-    elements.customThemeModal =
-        document.getElementById("customThemeModal");
-
-    elements.customBackgroundInput =
-        document.getElementById("customBackgroundInput");
-
-    elements.customSurfaceInput =
-        document.getElementById("customSurfaceInput");
-
-    elements.customTextInput =
-        document.getElementById("customTextInput");
-
-    elements.customMutedInput =
-        document.getElementById("customMutedInput");
-
-    elements.saveCustomThemeButton =
-        document.getElementById("saveCustomThemeButton");
-
-    elements.locationModal =
-        document.getElementById("locationModal");
-
-    elements.locationSearchForm =
-        document.getElementById("locationSearchForm");
-
-    elements.locationSearchInput =
-        document.getElementById("locationSearchInput");
-
-    elements.locationResults =
-        document.getElementById("locationResults");
-
-    elements.modalUseLocationButton =
-        document.getElementById("modalUseLocationButton");
-
-    elements.modeModal =
-        document.getElementById("modeModal");
-
-    elements.modeNameInput =
-        document.getElementById("modeNameInput");
-
-    elements.modeKeywordsInput =
-        document.getElementById("modeKeywordsInput");
-
-    elements.modeDomainsInput =
-        document.getElementById("modeDomainsInput");
-
-    elements.modeFreshnessInput =
-        document.getElementById("modeFreshnessInput");
-
-    elements.modeTechnicalInput =
-        document.getElementById("modeTechnicalInput");
-
-    elements.saveModeButton =
-        document.getElementById("saveModeButton");
-
-    elements.imageViewer =
-        document.getElementById("imageViewer");
-
-    elements.viewerImage =
-        document.getElementById("viewerImage");
-
-    elements.viewerImageTitle =
-        document.getElementById("viewerImageTitle");
-
-    elements.viewerImageSource =
-        document.getElementById("viewerImageSource");
-
-    elements.viewerImageDownload =
-        document.getElementById("viewerImageDownload");
-
-    elements.viewerImageUrl =
-        document.getElementById("viewerImageUrl");
-
-    elements.viewerImagePage =
-        document.getElementById("viewerImagePage");
-
-    elements.closeImageViewer =
-        document.getElementById("closeImageViewer");
-
-    elements.toast =
-        document.getElementById("toast");
-}
-
-function bindEvents() {
-    elements.homeSearchForm.addEventListener("submit", event => {
-        event.preventDefault();
-        runSearch(elements.homeSearchInput.value);
-    });
-
-    elements.topSearchForm.addEventListener("submit", event => {
-        event.preventDefault();
-        runSearch(elements.topSearchInput.value);
-    });
-
-    elements.brand.addEventListener("click", goHome);
-
-    elements.settingsButton.addEventListener("click", openSettings);
-    elements.closeSettingsButton.addEventListener("click", closeSettings);
-    elements.settingsBackdrop.addEventListener("click", closeSettings);
-
-    document.querySelectorAll(".result-tab").forEach(button => {
-        button.addEventListener("click", () => {
-            switchTab(button.dataset.tab);
-        });
-    });
-
-    elements.loadMoreButton.addEventListener("click", () => {
-        if (state.loading || !state.hasMore) {
-            return;
-        }
-
-        state.page += 1;
-        fetchResults(false);
-    });
-
-    elements.previousPageButton.addEventListener("click", () => {
-        if (state.page <= 1 || state.loading) {
-            return;
-        }
-
-        state.page -= 1;
-        fetchResults(true);
-    });
-
-    elements.nextPageButton.addEventListener("click", () => {
-        if (!state.hasMore || state.loading) {
-            return;
-        }
-
-        state.page += 1;
-        fetchResults(true);
-    });
-
-    elements.themeSelect.addEventListener("change", event => {
-        settings.theme = event.target.value;
-        saveSettings();
-        applySettings();
-    });
-
-    elements.fontSelect.addEventListener("change", event => {
-        settings.font = event.target.value;
-        saveSettings();
-        applySettings();
-    });
-
-    elements.accentColorInput.addEventListener("input", event => {
-        settings.accent = event.target.value;
-        saveSettings();
-        applySettings();
-    });
-
-    elements.customThemeButton.addEventListener(
-        "click",
-        openCustomThemeModal
-    );
-
-    elements.fontImportButton.addEventListener(
-        "click",
-        () => elements.fontFileInput.click()
-    );
-
-    elements.fontFileInput.addEventListener(
-        "change",
-        handleFontImport
-    );
-
-    elements.resultModeSelect.addEventListener("change", event => {
-        settings.resultMode = event.target.value;
-        saveSettings();
-        updatePaginationUI();
-    });
-
-    elements.historyEnabledInput.addEventListener("change", event => {
-        settings.historyEnabled = event.target.checked;
-        saveSettings();
-    });
-
-    elements.clearHistoryButton.addEventListener("click", () => {
-        localStorage.removeItem("seerch_history");
-        showToast("Local search history cleared");
-    });
-
-    elements.safeSearchSelect.addEventListener("change", event => {
-        settings.safeSearch = event.target.value;
-        saveSettings();
-        updateTruthWarning();
-
-        if (state.query) {
-            state.results = applySafeSearch(state.results);
-            state.mediaResults = buildMediaResults(state.results);
-            renderCurrentResults();
-        }
-    });
-
-    elements.weatherAddButton.addEventListener(
-        "click",
-        openLocationModal
-    );
-
-    elements.weatherSettingsButton.addEventListener(
-        "click",
-        openLocationModal
-    );
-
-    elements.weatherSettingsAction.addEventListener(
-        "click",
-        openLocationModal
-    );
-
-    elements.weatherUseLocationButton.addEventListener(
-        "click",
-        useBrowserLocation
-    );
-
-    elements.modalUseLocationButton.addEventListener(
-        "click",
-        useBrowserLocation
-    );
-
-    elements.weatherRemoveButton.addEventListener("click", () => {
-        settings.weatherLocation = null;
-        saveSettings();
-        renderWeatherEmpty();
-        showToast("Weather location removed");
-    });
-
-    elements.locationSearchForm.addEventListener("submit", event => {
-        event.preventDefault();
-        searchLocations(elements.locationSearchInput.value);
-    });
-
-    elements.stockSettingsButton.addEventListener(
-        "click",
-        openSettings
-    );
-
-    elements.stockAddButton.addEventListener(
-        "click",
-        openSettings
-    );
-
-    elements.saveStocksButton.addEventListener(
-        "click",
-        saveStockSettings
-    );
-
-    elements.refreshStocksButton.addEventListener(
-        "click",
-        () => loadStocks(true)
-    );
-
-    elements.modeSelect.addEventListener("change", event => {
-        settings.mode = event.target.value;
-        saveSettings();
-
-        if (state.query) {
-            renderCurrentResults();
-        }
-    });
-
-    elements.createModeButton.addEventListener(
-        "click",
-        openModeModal
-    );
-
-    elements.saveModeButton.addEventListener(
-        "click",
-        saveCustomMode
-    );
-
-    elements.customizeUiButton.addEventListener(
-        "click",
-        startCustomization
-    );
-
-    elements.saveLayoutButton.addEventListener(
-        "click",
-        saveLayout
-    );
-
-    elements.cancelLayoutButton.addEventListener(
-        "click",
-        cancelCustomization
-    );
-
-    elements.exportSettingsButton.addEventListener(
-        "click",
-        exportSettings
-    );
-
-    elements.importSettingsButton.addEventListener(
-        "click",
-        () => elements.settingsFileInput.click()
-    );
-
-    elements.settingsFileInput.addEventListener(
-        "change",
-        importSettings
-    );
-
-    elements.resetSettingsButton.addEventListener(
-        "click",
-        resetSettings
-    );
-
-    elements.saveCustomThemeButton.addEventListener(
-        "click",
-        saveCustomTheme
-    );
-
-    document.querySelectorAll("[data-close-modal]").forEach(button => {
-        button.addEventListener("click", () => {
-            closeModal(button.dataset.closeModal);
-        });
-    });
-
-    elements.closeImageViewer.addEventListener(
-        "click",
-        closeImageViewer
-    );
-
-    document
-        .querySelector(".image-viewer-backdrop")
-        .addEventListener("click", closeImageViewer);
-
-    document.addEventListener("keydown", handleKeyboard);
-
-    window.addEventListener("scroll", handleInfiniteScroll);
-
-    window
-        .matchMedia("(prefers-color-scheme: dark)")
-        .addEventListener("change", () => {
-            if (settings.theme === "system") {
-                applySettings();
-            }
-        });
-}
-
-function initializeHome() {
-    elements.topSearchWrap.classList.add("hidden");
-
-    if (settings.weatherLocation) {
-        loadWeather();
-    } else {
-        renderWeatherEmpty();
-    }
-
-    if (settings.stockSymbols.length) {
-        loadStocks();
-    } else {
-        renderStocksEmpty();
-    }
-}
-
-async function runSearch(query) {
-    query = String(query || "").trim();
-
-    if (!query) {
-        return;
-    }
-
-    closeSettings();
-
-    state.query = query;
-    state.page = 1;
-    state.results = [];
-    state.mediaResults = {
-        images: [],
-        videos: []
-    };
-    state.hasMore = true;
-
-    elements.homePage.classList.add("hidden");
-    elements.resultsPage.classList.remove("hidden");
-    elements.topSearchWrap.classList.remove("hidden");
-
-    elements.homeSearchInput.value = query;
-    elements.topSearchInput.value = query;
-
-    if (settings.historyEnabled) {
-        saveHistory(query);
-    }
-
-    switchTab("web");
-
-    await fetchResults(true);
-}
-
-async function fetchResults(replace) {
-    if (state.loading || !state.query) {
-        return;
-    }
-
-    state.loading = true;
-
-    const token = ++state.searchToken;
-
-    elements.resultsStatus.textContent =
-        replace ? "Searching..." : "Loading...";
-
-    if (replace) {
-        elements.resultsContainer.innerHTML = "";
-    }
-
-    try {
-        const params = new URLSearchParams({
-            q: state.query,
-            page: String(state.page),
-            limit: String(state.pageSize)
-        });
-
-        const response = await fetch(
-            `${API_URL}/search?${params.toString()}`
-        );
-
-        if (!response.ok) {
-            throw new Error(
-                `Search request failed: ${response.status}`
-            );
-        }
-
-        const data = await response.json();
-
-        if (token !== state.searchToken) {
-            return;
-        }
-
-        let incoming = Array.isArray(data.results)
-            ? data.results
-            : [];
-
-        incoming = applySafeSearch(incoming);
-
-        if (replace) {
-            state.results = incoming;
-        } else {
-            state.results = [
-                ...state.results,
-                ...incoming
-            ];
-        }
-
-        state.hasMore =
-            incoming.length >= state.pageSize;
-
-        state.mediaResults =
-            buildMediaResults(state.results);
-
-        renderCurrentResults();
-        updatePaginationUI();
-
-        elements.resultsStatus.textContent =
-            incoming.length
-                ? ""
-                : "No results found.";
-    } catch (error) {
-        elements.resultsStatus.textContent =
-            error.message || "Search failed.";
-    } finally {
-        state.loading = false;
-    }
-}
-
-function applySafeSearch(results) {
-    if (settings.safeSearch === "truth") {
-        return results;
-    }
-
-    const blocked =
-        settings.safeSearch === "extreme"
-            ? [
-                "porn",
-                "xxx",
-                "sexual",
-                "violence",
-                "gore",
-                "drug",
-                "casino",
-                "gambling"
-            ]
-            : settings.safeSearch === "normal"
-                ? [
-                    "porn",
-                    "xxx",
-                    "sexual",
-                    "gore",
-                    "casino",
-                    "gambling"
-                ]
-                : [
-                    "malware",
-                    "phishing",
-                    "exploit"
-                ];
-
-    return results.filter(result => {
-        const text = [
-            result.title,
-            result.description,
-            result.url
-        ]
-            .join(" ")
-            .toLowerCase();
-
-        return !blocked.some(
-            word => text.includes(word)
-        );
-    });
-}
-
-function buildMediaResults(results) {
-    const images = [];
-    const videos = [];
-
-    for (const result of results) {
-        if (Array.isArray(result.images)) {
-            for (const image of result.images) {
-                if (!image || !image.url) {
-                    continue;
-                }
-
-                images.push({
-                    ...image,
-                    pageUrl: result.url,
-                    pageTitle: result.title || ""
-                });
-            }
-        }
-
-        if (Array.isArray(result.videos)) {
-            for (const video of result.videos) {
-                if (!video || !video.url) {
-                    continue;
-                }
-
-                videos.push({
-                    ...video,
-                    pageUrl: result.url,
-                    pageTitle: result.title || ""
-                });
-            }
-        }
-    }
-
-    return {
-        images,
-        videos
-    };
-}
-
-function switchTab(tab) {
-    state.tab = tab;
-
-    document
-        .querySelectorAll(".result-tab")
-        .forEach(button => {
-            button.classList.toggle(
-                "active",
-                button.dataset.tab === tab
-            );
-        });
-
-    renderCurrentResults();
-}
-
-function renderCurrentResults() {
-    if (state.tab === "web") {
-        renderWebResults();
-        return;
-    }
-
-    if (state.tab === "images") {
-        renderImageResults();
-        return;
-    }
-
-    if (state.tab === "videos") {
-        renderVideoResults();
-        return;
-    }
-
-    renderNewsResults();
-}
-
-function renderWebResults() {
-    elements.resultsContainer.innerHTML = "";
-
-    const results =
-        rankResultsForMode(state.results);
-
-    elements.resultsMeta.textContent =
-        `${results.length} results`;
-
-    if (!results.length) {
-        elements.resultsStatus.textContent =
-            "No web results.";
-
-        return;
-    }
-
-    for (const result of results) {
-        const article =
-            document.createElement("article");
-
-        article.className = "web-result";
-
-        const url =
-            document.createElement("div");
-
-        url.className = "result-url";
-        url.textContent = result.url || "";
-
-        const title =
-            document.createElement("a");
-
-        title.className = "result-title";
-        title.href = result.url || "#";
-        title.target = "_blank";
-        title.rel = "noopener noreferrer";
-        title.textContent =
-            result.title ||
-            result.url ||
-            "Untitled";
-
-        const description =
-            document.createElement("p");
-
-        description.className =
-            "result-description";
-
-        description.textContent =
-            result.description || "";
-
-        const score =
-            document.createElement("div");
-
-        score.className = "result-score";
-
-        score.textContent =
-            Number.isFinite(result.score)
-                ? `Truth25 score: ${Number(
-                    result.score
-                ).toFixed(2)}`
-                : "";
-
-        article.appendChild(url);
-        article.appendChild(title);
-        article.appendChild(description);
-        article.appendChild(score);
-
-        elements.resultsContainer.appendChild(
-            article
-        );
-    }
-
-    elements.resultsStatus.textContent = "";
-}
-
-function renderImageResults() {
-    elements.resultsContainer.innerHTML = "";
-
-    const images =
-        state.mediaResults.images || [];
-
-    elements.resultsMeta.textContent =
-        `${images.length} images`;
-
-    if (!images.length) {
-        elements.resultsStatus.textContent =
-            "No images found.";
-
-        return;
-    }
-
-    const grid =
-        document.createElement("div");
-
-    grid.className = "media-grid";
-
-    state.imageItems = images;
-
-    images.forEach((image, index) => {
-        const card =
-            document.createElement("article");
-
-        card.className = "media-card";
-
-        const img =
-            document.createElement("img");
-
-        img.className = "media-image";
-        img.src = image.url;
-        img.alt =
-            image.title ||
-            image.pageTitle ||
-            "Image";
-        img.loading = "lazy";
-
-        const body =
-            document.createElement("div");
-
-        body.className =
-            "media-card-body";
-
-        const title =
-            document.createElement("div");
-
-        title.className =
-            "media-card-title";
-
-        title.textContent =
-            image.title ||
-            image.pageTitle ||
-            "Image";
-
-        const source =
-            document.createElement("div");
-
-        source.className =
-            "media-card-source";
-
-        source.textContent =
-            image.pageUrl || "";
-
-        body.appendChild(title);
-        body.appendChild(source);
-
-        card.appendChild(img);
-        card.appendChild(body);
-
-        card.addEventListener(
-            "click",
-            () => openImageViewer(index)
-        );
-
-        grid.appendChild(card);
-    });
-
-    elements.resultsContainer.appendChild(grid);
-    elements.resultsStatus.textContent = "";
-}
-
-function renderVideoResults() {
-    elements.resultsContainer.innerHTML = "";
-
-    const videos =
-        state.mediaResults.videos || [];
-
-    elements.resultsMeta.textContent =
-        `${videos.length} videos`;
-
-    if (!videos.length) {
-        elements.resultsStatus.textContent =
-            "No videos found.";
-
-        return;
-    }
-
-    const grid =
-        document.createElement("div");
-
-    grid.className = "media-grid";
-
-    state.videoItems = videos;
-
-    videos.forEach(video => {
-        const card =
-            document.createElement("article");
-
-        card.className =
-            "media-card video-card";
-
-        const image =
-            document.createElement("img");
-
-        image.className =
-            "media-image";
-
-        image.src =
-            video.thumbnail || "";
-
-        image.alt =
-            video.title ||
-            video.pageTitle ||
-            "Video";
-
-        image.loading = "lazy";
-
-        const play =
-            document.createElement("div");
-
-        play.className =
-            "video-play";
-
-        play.textContent = "▶";
-
-        const body =
-            document.createElement("div");
-
-        body.className =
-            "media-card-body";
-
-        const title =
-            document.createElement("div");
-
-        title.className =
-            "media-card-title";
-
-        title.textContent =
-            video.title ||
-            video.pageTitle ||
-            "Video";
-
-        const source =
-            document.createElement("div");
-
-        source.className =
-            "media-card-source";
-
-        source.textContent =
-            video.pageUrl || "";
-
-        body.appendChild(title);
-        body.appendChild(source);
-
-        card.appendChild(image);
-        card.appendChild(play);
-        card.appendChild(body);
-
-        card.addEventListener("click", () => {
-            window.open(
-                video.url,
-                "_blank",
-                "noopener,noreferrer"
-            );
-        });
-
-        grid.appendChild(card);
-    });
-
-    elements.resultsContainer.appendChild(grid);
-    elements.resultsStatus.textContent = "";
-}
-
-function renderNewsResults() {
-    elements.resultsContainer.innerHTML = "";
-
-    const results =
-        rankResultsForMode(state.results)
-            .filter(result => {
-                const text = [
-                    result.title,
-                    result.description,
-                    result.url
-                ]
-                    .join(" ")
-                    .toLowerCase();
-
-                return [
-                    "news",
-                    "latest",
-                    "report",
-                    "press",
-                    "breaking"
-                ].some(word =>
-                    text.includes(word)
-                );
-            });
-
-    elements.resultsMeta.textContent =
-        `${results.length} news-style results`;
-
-    if (!results.length) {
-        elements.resultsStatus.textContent =
-            "No news results found in the current search results.";
-
-        return;
-    }
-
-    for (const result of results) {
-        const article =
-            document.createElement("article");
-
-        article.className = "web-result";
-
-        const title =
-            document.createElement("a");
-
-        title.className = "result-title";
-        title.href = result.url || "#";
-        title.target = "_blank";
-        title.rel = "noopener noreferrer";
-        title.textContent =
-            result.title ||
-            result.url ||
-            "Untitled";
-
-        const description =
-            document.createElement("p");
-
-        description.className =
-            "result-description";
-
-        description.textContent =
-            result.description || "";
-
-        const url =
-            document.createElement("div");
-
-        url.className = "result-url";
-        url.textContent =
-            result.url || "";
-
-        article.appendChild(title);
-        article.appendChild(description);
-        article.appendChild(url);
-
-        elements.resultsContainer.appendChild(
-            article
-        );
-    }
-
-    elements.resultsStatus.textContent = "";
-}
-
-function rankResultsForMode(results) {
-    const mode = getActiveMode();
-
-    if (!mode || mode.name === "default") {
-        return [...results];
-    }
-
-    const keywords =
-        mode.keywords || [];
-
-    const domains =
-        mode.domains || [];
-
-    const freshness =
-        Number(mode.freshness || 0);
-
-    const technical =
-        Number(mode.technical || 0);
-
-    return [...results]
-        .map(result => {
-            let bonus = 0;
-
-            const text = [
-                result.title,
-                result.description,
-                result.url
-            ]
-                .join(" ")
-                .toLowerCase();
-
-            for (const keyword of keywords) {
-                if (
-                    text.includes(
-                        keyword.toLowerCase()
-                    )
-                ) {
-                    bonus += 3;
-                }
-            }
-
-            for (const domain of domains) {
-                if (
-                    String(result.url || "")
-                        .includes(domain)
-                ) {
-                    bonus += 8;
-                }
-            }
-
-            if (technical > 0) {
-                const technicalWords = [
-                    "api",
-                    "github",
-                    "documentation",
-                    "developer",
-                    "programming",
-                    "software",
-                    "code",
-                    "research"
-                ];
-
-                const matches =
-                    technicalWords.filter(
-                        word => text.includes(word)
-                    ).length;
-
-                bonus +=
-                    matches *
-                    (technical / 5);
-            }
-
-            if (
-                freshness > 0 &&
-                result.date
-            ) {
-                const date =
-                    new Date(result.date);
-
-                if (!Number.isNaN(
-                    date.getTime()
-                )) {
-                    const age =
-                        Math.floor(
-                            (
-                                Date.now() -
-                                date.getTime()
-                            ) / 86400000
-                        );
-
-                    if (age <= freshness) {
-                        bonus += 5;
-                    }
-                }
-            }
-
-            return {
-                ...result,
-                modeScore:
-                    Number(result.score || 0) +
-                    bonus
-            };
-        })
-        .sort(
-            (a, b) =>
-                b.modeScore -
-                a.modeScore
-        );
-}
-
-function getActiveMode() {
-    if (settings.mode === "default") {
-        return {
-            name: "default",
-            keywords: [],
-            domains: [],
-            freshness: 0,
-            technical: 0
-        };
-    }
-
-    const builtIn = {
-        technology: {
-            name: "technology",
-            keywords: [
-                "technology",
-                "software",
-                "programming",
-                "developer",
-                "computer",
-                "hardware"
-            ],
-            domains: [],
-            freshness: 0,
-            technical: 7
-        },
-
-        ai: {
-            name: "ai",
-            keywords: [
-                "artificial intelligence",
-                "ai",
-                "machine learning",
-                "llm",
-                "neural network"
-            ],
-            domains: [],
-            freshness: 7,
-            technical: 7
-        },
-
-        news: {
-            name: "news",
-            keywords: [
-                "news",
-                "latest",
-                "breaking",
-                "report"
-            ],
-            domains: [],
-            freshness: 3,
-            technical: 0
-        },
-
-        academic: {
-            name: "academic",
-            keywords: [
-                "research",
-                "study",
-                "paper",
-                "journal",
-                "university",
-                "science"
-            ],
-            domains: [
-                ".edu",
-                "arxiv.org",
-                "nature.com",
-                "sciencedirect.com"
-            ],
-            freshness: 30,
-            technical: 5
-        }
-    };
-
-    return (
-        builtIn[settings.mode] ||
-        settings.customModes.find(
-            mode => mode.id === settings.mode
-        ) ||
-        builtIn.technology
-    );
-}
-
-function updatePaginationUI() {
-    elements.loadMoreArea.classList.toggle(
-        "hidden",
-        settings.resultMode !== "loadmore" ||
-        !state.hasMore
-    );
-
-    elements.pageNavigation.classList.toggle(
-        "hidden",
-        settings.resultMode !== "pages"
-    );
-
-    if (settings.resultMode === "pages") {
-        elements.previousPageButton.disabled =
-            state.page <= 1;
-
-        elements.nextPageButton.disabled =
-            !state.hasMore;
-
-        elements.pageNumber.textContent =
-            String(state.page);
-    }
-}
-
-function handleInfiniteScroll() {
-    if (
-        settings.resultMode !== "infinite" ||
-        state.loading ||
-        !state.hasMore ||
-        !state.query
-    ) {
-        return;
-    }
-
-    const nearBottom =
-        window.innerHeight +
-        window.scrollY >=
-        document.documentElement.scrollHeight -
-        700;
-
-    if (nearBottom) {
-        state.page += 1;
-        fetchResults(false);
-    }
-}
-
-function openSettings() {
-    elements.settingsPanel.classList.add("open");
-    elements.settingsBackdrop.classList.add("open");
-}
-
-function closeSettings() {
-    elements.settingsPanel.classList.remove("open");
-    elements.settingsBackdrop.classList.remove("open");
-}
-
-function openModal(element) {
-    element.classList.remove("hidden");
-}
-
-function closeModal(id) {
-    const element =
-        document.getElementById(id);
-
-    if (element) {
-        element.classList.add("hidden");
-    }
-}
-
-function openCustomThemeModal() {
-    elements.customBackgroundInput.value =
-        settings.customTheme.background;
-
-    elements.customSurfaceInput.value =
-        settings.customTheme.surface;
-
-    elements.customTextInput.value =
-        settings.customTheme.text;
-
-    elements.customMutedInput.value =
-        settings.customTheme.muted;
-
-    openModal(elements.customThemeModal);
-}
-
-function saveCustomTheme() {
-    settings.customTheme = {
-        background:
-            elements.customBackgroundInput.value,
-
-        surface:
-            elements.customSurfaceInput.value,
-
-        text:
-            elements.customTextInput.value,
-
-        muted:
-            elements.customMutedInput.value
-    };
-
-    settings.theme = "custom";
-
-    saveSettings();
-    applySettings();
-    populateSettingsUI();
-
-    closeModal("customThemeModal");
-
-    showToast("Custom theme saved");
-}
-
-async function handleFontImport(event) {
-    const file =
-        event.target.files &&
-        event.target.files[0];
-
-    if (!file) {
-        return;
-    }
-
-    try {
-        const buffer =
-            await file.arrayBuffer();
-
-        const base64 =
-            arrayBufferToBase64(buffer);
-
-        const fontData = {
-            name:
-                `SEErchCustomFont_${Date.now()}`,
-
-            mime:
-                file.type ||
-                guessFontMime(file.name),
-
-            data: base64
-        };
-
-        localStorage.setItem(
-            "seerch_custom_font",
-            JSON.stringify(fontData)
-        );
-
-        installCustomFont(fontData);
-
-        settings.font = "custom";
-
-        saveSettings();
-        applySettings();
-
-        showToast("Font imported");
-    } catch {
-        showToast("Could not import font");
-    }
-
-    event.target.value = "";
-}
-
-function guessFontMime(name) {
-    const lower =
-        name.toLowerCase();
-
-    if (lower.endsWith(".woff2")) {
-        return "font/woff2";
-    }
-
-    if (lower.endsWith(".woff")) {
-        return "font/woff";
-    }
-
-    if (lower.endsWith(".otf")) {
-        return "font/otf";
-    }
-
-    if (lower.endsWith(".ttf")) {
-        return "font/ttf";
-    }
-
-    return "font/woff2";
-}
-
-function installCustomFont(fontData) {
-    const previous =
-        document.getElementById(
-            "seerch-custom-font-style"
-        );
-
-    if (previous) {
-        previous.remove();
-    }
-
-    const style =
-        document.createElement("style");
-
-    style.id =
-        "seerch-custom-font-style";
-
-    style.textContent = `
-        @font-face {
-            font-family: "${fontData.name}";
-            src: url("data:${fontData.mime};base64,${fontData.data}");
-            font-display: swap;
-        }
-    `;
-
-    document.head.appendChild(style);
-}
-
-function loadCustomFont() {
-    const raw =
-        localStorage.getItem(
-            "seerch_custom_font"
-        );
-
-    if (!raw) {
-        return;
-    }
-
-    try {
-        const fontData =
-            JSON.parse(raw);
-
-        installCustomFont(fontData);
-    } catch {
-        localStorage.removeItem(
-            "seerch_custom_font"
-        );
-    }
-}
-
-function applySettings() {
-    const root =
-        document.documentElement;
-
-    root.style.setProperty(
-        "--accent",
-        settings.accent
-    );
-
-    const theme =
-        resolveTheme(settings.theme);
-
-    if (theme === "dark") {
-        setThemeColors({
-            bg: "#111111",
-            surface: "#1b1b1b",
-            surface2: "#242424",
-            text: "#f5f5f5",
-            muted: "#a0a0a0",
-            border: "#333333"
-        });
-    } else if (theme === "paper") {
-        setThemeColors({
-            bg: "#f4efe4",
-            surface: "#eee7d8",
-            surface2: "#e5ddcb",
-            text: "#28251f",
-            muted: "#6d675d",
-            border: "#d4ccbc"
-        });
-    } else if (theme === "amoled") {
-        setThemeColors({
-            bg: "#000000",
-            surface: "#090909",
-            surface2: "#121212",
-            text: "#ffffff",
-            muted: "#999999",
-            border: "#242424"
-        });
-    } else if (theme === "custom") {
-        setThemeColors({
-            bg: settings.customTheme.background,
-            surface: settings.customTheme.surface,
-            surface2: adjustColor(
-                settings.customTheme.surface,
-                -8
-            ),
-            text: settings.customTheme.text,
-            muted: settings.customTheme.muted,
-            border: adjustColor(
-                settings.customTheme.surface,
-                -20
-            )
-        });
-    } else {
-        setThemeColors({
-            bg: "#ffffff",
-            surface: "#f7f7f8",
-            surface2: "#eeeeef",
-            text: "#111111",
-            muted: "#666666",
-            border: "#dedede"
-        });
-    }
-
-    root.style.setProperty(
-        "--font",
-        getFontFamily(settings.font)
-    );
-
-    updateTruthWarning();
-}
-
-function setThemeColors(colors) {
-    const root =
-        document.documentElement;
-
-    root.style.setProperty(
-        "--bg",
-        colors.bg
-    );
-
-    root.style.setProperty(
-        "--surface",
-        colors.surface
-    );
-
-    root.style.setProperty(
-        "--surface-2",
-        colors.surface2
-    );
-
-    root.style.setProperty(
-        "--text",
-        colors.text
-    );
-
-    root.style.setProperty(
-        "--muted",
-        colors.muted
-    );
-
-    root.style.setProperty(
-        "--border",
-        colors.border
-    );
-}
-
-function resolveTheme(theme) {
-    if (theme !== "system") {
-        return theme;
-    }
-
-    return window
-        .matchMedia(
-            "(prefers-color-scheme: dark)"
-        )
-        .matches
-        ? "dark"
-        : "light";
-}
-
-function getFontFamily(font) {
-    if (font === "inter") {
-        return "Inter, system-ui, sans-serif";
-    }
-
-    if (font === "arial") {
-        return "Arial, sans-serif";
-    }
-
-    if (font === "verdana") {
-        return "Verdana, sans-serif";
-    }
-
-    if (font === "georgia") {
-        return "Georgia, serif";
-    }
-
-    if (font === "monospace") {
-        return "ui-monospace, SFMono-Regular, Menlo, monospace";
-    }
-
-    if (font === "custom") {
-        const raw =
-            localStorage.getItem(
-                "seerch_custom_font"
-            );
-
-        if (raw) {
-            try {
-                const data =
-                    JSON.parse(raw);
-
-                return `"${data.name}", system-ui, sans-serif`;
-            } catch {
-                return "system-ui, sans-serif";
-            }
-        }
-    }
-
-    return "system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif";
-}
-
-function populateSettingsUI() {
-    elements.themeSelect.value =
-        settings.theme;
-
-    elements.fontSelect.value =
-        settings.font;
-
-    elements.accentColorInput.value =
-        settings.accent;
-
-    elements.resultModeSelect.value =
-        settings.resultMode;
-
-    elements.historyEnabledInput.checked =
-        settings.historyEnabled;
-
-    elements.safeSearchSelect.value =
-        settings.safeSearch;
-
-    elements.modeSelect.value =
-        settings.mode;
-
-    elements.stockProviderSelect.value =
-        settings.stockProvider;
-
-    elements.stockApiKeyInput.value =
-        settings.stockApiKey;
-
-    elements.stockSymbolsInput.value =
-        settings.stockSymbols.join(", ");
-
-    updateTruthWarning();
-}
-
-function updateTruthWarning() {
-    elements.truthWarning.classList.toggle(
-        "hidden",
-        settings.safeSearch !== "truth"
-    );
-}
-
-function openLocationModal() {
-    elements.locationSearchInput.value =
-        settings.weatherLocation?.name || "";
-
-    elements.locationResults.innerHTML = "";
-
-    openModal(elements.locationModal);
-
-    setTimeout(
-        () =>
-            elements.locationSearchInput.focus(),
-        50
-    );
-}
-
-async function searchLocations(query) {
-    query =
-        String(query || "").trim();
-
-    if (!query) {
-        return;
-    }
-
-    elements.locationResults.innerHTML =
-        "<div class=\"settings-description\">Searching...</div>";
-
-    try {
-        const params =
-            new URLSearchParams({
-                name: query,
-                count: "8",
-                language: "en",
-                format: "json"
-            });
-
-        const response =
-            await fetch(
-                `${OPEN_METEO_GEOCODING}?${params.toString()}`
-            );
-
-        if (!response.ok) {
-            throw new Error(
-                "Location search failed"
-            );
-        }
-
-        const data =
-            await response.json();
-
-        const locations =
-            Array.isArray(data.results)
-                ? data.results
-                : [];
-
-        elements.locationResults.innerHTML =
-            "";
-
-        if (!locations.length) {
-            elements.locationResults.innerHTML =
-                "<div class=\"settings-description\">No locations found.</div>";
-
-            return;
-        }
-
-        locations.forEach(location => {
-            const button =
-                document.createElement("button");
-
-            button.className =
-                "location-result";
-
-            const title =
-                document.createElement("strong");
-
-            title.textContent =
-                location.name || "";
-
-            const details =
-                document.createElement("span");
-
-            details.textContent = [
-                location.admin1,
-                location.country
-            ]
-                .filter(Boolean)
-                .join(", ");
-
-            button.appendChild(title);
-            button.appendChild(details);
-
-            button.addEventListener(
-                "click",
-                () =>
-                    selectWeatherLocation(
-                        location
-                    )
-            );
-
-            elements.locationResults.appendChild(
-                button
-            );
-        });
-    } catch {
-        elements.locationResults.innerHTML =
-            "<div class=\"settings-description\">Could not search for that location.</div>";
-    }
-}
-
-function selectWeatherLocation(location) {
-    settings.weatherLocation = {
-        name: location.name,
-        latitude: Number(location.latitude),
-        longitude: Number(location.longitude),
-        country: location.country || "",
-        admin1: location.admin1 || ""
-    };
-
-    saveSettings();
-
-    closeModal("locationModal");
-
-    loadWeather();
-}
-
-function useBrowserLocation() {
-    if (!navigator.geolocation) {
-        showToast(
-            "Geolocation is not available in this browser"
-        );
-
-        return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-        async position => {
-            const latitude =
-                position.coords.latitude;
-
-            const longitude =
-                position.coords.longitude;
-
-            try {
-                const location =
-                    await reverseGeocode(
-                        latitude,
-                        longitude
-                    );
-
-                settings.weatherLocation = {
-                    name:
-                        location?.name ||
-                        "Current location",
-
-                    latitude,
-                    longitude,
-
-                    country:
-                        location?.country || "",
-
-                    admin1:
-                        location?.admin1 || ""
-                };
-
-                saveSettings();
-
-                closeModal(
-                    "locationModal"
-                );
-
-                loadWeather();
-            } catch {
-                settings.weatherLocation = {
-                    name: "Current location",
-                    latitude,
-                    longitude,
-                    country: "",
-                    admin1: ""
-                };
-
-                saveSettings();
-
-                closeModal(
-                    "locationModal"
-                );
-
-                loadWeather();
-            }
-        },
-        () => {
-            showToast(
-                "Location permission was not granted"
-            );
-        },
-        {
-            enableHighAccuracy: false,
-            maximumAge: 300000,
-            timeout: 10000
-        }
-    );
-}
-
-async function reverseGeocode(
-    latitude,
-    longitude
-) {
-    const params =
-        new URLSearchParams({
-            latitude: String(latitude),
-            longitude: String(longitude),
-            count: "1",
-            language: "en",
-            format: "json"
-        });
-
-    const response =
-        await fetch(
-            `${OPEN_METEO_GEOCODING}?${params.toString()}`
-        );
-
-    if (!response.ok) {
-        throw new Error(
-            "Reverse geocoding failed"
-        );
-    }
-
-    const data =
-        await response.json();
-
-    return data.results?.[0] || null;
-}
-
-async function loadWeather() {
-    if (!settings.weatherLocation) {
-        renderWeatherEmpty();
-        return;
-    }
-
-    const location =
-        settings.weatherLocation;
-
-    elements.weatherLocationName.textContent =
-        location.name;
-
-    elements.weatherContent.innerHTML =
-        "<div class=\"settings-description\">Loading weather...</div>";
-
-    try {
-        const params =
-            new URLSearchParams({
-                latitude:
-                    String(location.latitude),
-
-                longitude:
-                    String(location.longitude),
-
-                current: [
-                    "temperature_2m",
-                    "relative_humidity_2m",
-                    "apparent_temperature",
-                    "precipitation",
-                    "weather_code",
-                    "wind_speed_10m"
-                ].join(","),
-
-                timezone: "auto",
-
-                forecast_days: "1"
-            });
-
-        const response =
-            await fetch(
-                `${OPEN_METEO_FORECAST}?${params.toString()}`
-            );
-
-        if (!response.ok) {
-            throw new Error(
-                "Weather request failed"
-            );
-        }
-
-        const data =
-            await response.json();
-
-        renderWeather(data);
-    } catch {
-        elements.weatherContent.innerHTML = `
-            <div class="widget-empty">
-                <p>Weather could not be loaded.</p>
-                <button class="primary-small-button" id="retryWeatherButton">
-                    Retry
-                </button>
-            </div>
-        `;
-
-        document
-            .getElementById(
-                "retryWeatherButton"
-            )
-            .addEventListener(
-                "click",
-                loadWeather
-            );
-    }
-}
-
-function renderWeather(data) {
-    const current =
-        data.current;
-
-    if (!current) {
-        renderWeatherEmpty();
-        return;
-    }
-
-    elements.weatherContent.innerHTML =
-        "";
-
-    const main =
-        document.createElement("div");
-
-    main.className =
-        "weather-main";
-
-    const temperature =
-        document.createElement("div");
-
-    temperature.className =
-        "weather-temperature";
-
-    temperature.textContent =
-        `${Math.round(
-            current.temperature_2m
-        )}°`;
-
-    const condition =
-        document.createElement("div");
-
-    condition.className =
-        "weather-condition";
-
-    condition.textContent =
-        weatherCodeToText(
-            current.weather_code
-        );
-
-    main.appendChild(temperature);
-    main.appendChild(condition);
-
-    const details =
-        document.createElement("div");
-
-    details.className =
-        "weather-details";
-
-    details.appendChild(
-        createWeatherDetail(
-            "Feels like",
-            `${Math.round(
-                current.apparent_temperature
-            )}°`
-        )
-    );
-
-    details.appendChild(
-        createWeatherDetail(
-            "Humidity",
-            `${Math.round(
-                current.relative_humidity_2m
-            )}%`
-        )
-    );
-
-    details.appendChild(
-        createWeatherDetail(
-            "Wind",
-            `${Math.round(
-                current.wind_speed_10m
-            )} km/h`
-        )
-    );
-
-    elements.weatherContent.appendChild(
-        main
-    );
-
-    elements.weatherContent.appendChild(
-        details
-    );
-}
-
-function createWeatherDetail(
-    label,
-    value
-) {
-    const element =
-        document.createElement("div");
-
-    element.className =
-        "weather-detail";
-
-    const labelElement =
-        document.createElement("span");
-
-    labelElement.textContent =
-        label;
-
-    const valueElement =
-        document.createElement("strong");
-
-    valueElement.textContent =
-        value;
-
-    element.appendChild(
-        labelElement
-    );
-
-    element.appendChild(
-        valueElement
-    );
-
-    return element;
-}
-
-function renderWeatherEmpty() {
-    elements.weatherLocationName.textContent =
-        "Add your location";
-
-    elements.weatherContent.innerHTML = `
-        <div class="widget-empty">
-            <span class="widget-icon">☁</span>
-            <p>Add a location to see the current weather.</p>
-            <button id="weatherAddButtonInner" class="primary-small-button">
-                Add location
-            </button>
-        </div>
-    `;
-
-    document
-        .getElementById(
-            "weatherAddButtonInner"
-        )
-        .addEventListener(
-            "click",
-            openLocationModal
-        );
-}
-
-function weatherCodeToText(code) {
-    const map = {
-        0: "Clear sky",
-        1: "Mainly clear",
-        2: "Partly cloudy",
-        3: "Overcast",
-        45: "Fog",
-        48: "Depositing rime fog",
-        51: "Light drizzle",
-        53: "Drizzle",
-        55: "Heavy drizzle",
-        56: "Freezing drizzle",
-        57: "Heavy freezing drizzle",
-        61: "Light rain",
-        63: "Rain",
-        65: "Heavy rain",
-        66: "Freezing rain",
-        67: "Heavy freezing rain",
-        71: "Light snow",
-        73: "Snow",
-        75: "Heavy snow",
-        77: "Snow grains",
-        80: "Light showers",
-        81: "Showers",
-        82: "Heavy showers",
-        85: "Snow showers",
-        86: "Heavy snow showers",
-        95: "Thunderstorm",
-        96: "Thunderstorm with hail",
-        99: "Thunderstorm with heavy hail"
-    };
-
-    return (
-        map[code] ||
-        "Unknown conditions"
-    );
-}
-
-function saveStockSettings() {
-    settings.stockProvider =
-        elements.stockProviderSelect.value;
-
-    settings.stockApiKey =
-        elements.stockApiKeyInput.value.trim();
-
-    settings.stockSymbols =
-        elements.stockSymbolsInput.value
-            .split(",")
-            .map(value =>
-                value.trim().toUpperCase()
-            )
-            .filter(Boolean)
-            .slice(0, 20);
-
-    saveSettings();
-
-    loadStocks(true);
-
-    showToast(
-        "Stock settings saved"
-    );
-}
-
-async function loadStocks() {
-    if (!settings.stockSymbols.length) {
-        renderStocksEmpty();
-        return;
-    }
-
-    if (
-        settings.stockProvider ===
-        "alphavantage"
-    ) {
-        await loadAlphaVantageStocks();
-        return;
-    }
-
-    renderStocksEmpty();
-}
-
-async function loadAlphaVantageStocks() {
-    if (!settings.stockApiKey) {
-        elements.stocksContent.innerHTML = `
-            <div class="widget-empty">
-                <p>Add your Alpha Vantage API key in Settings.</p>
-            </div>
-        `;
-
-        return;
-    }
-
-    elements.stocksContent.innerHTML = `
-        <div class="widget-empty">
-            <p>Loading market data...</p>
-        </div>
-    `;
-
-    const results = [];
-
-    for (const symbol of settings.stockSymbols) {
-        try {
-            const params =
-                new URLSearchParams({
-                    function: "GLOBAL_QUOTE",
-                    symbol,
-                    apikey:
-                        settings.stockApiKey
-                });
-
-            const response =
-                await fetch(
-                    `${ALPHA_VANTAGE_API}?${params.toString()}`
-                );
-
-            if (!response.ok) {
-                throw new Error(
-                    "Stock request failed"
-                );
-            }
-
-            const data =
-                await response.json();
-
-            if (data["Error Message"]) {
-                throw new Error(
-                    data["Error Message"]
-                );
-            }
-
-            if (data.Note) {
-                throw new Error(
-                    "Provider rate limit reached"
-                );
-            }
-
-            const quote =
-                data["Global Quote"];
-
-            if (
-                !quote ||
-                !quote["05. price"]
-            ) {
-                throw new Error(
-                    "No quote"
-                );
-            }
-
-            results.push({
-                symbol:
-                    quote["01. symbol"] ||
-                    symbol,
-
-                price:
-                    Number(
-                        quote["05. price"]
-                    ),
-
-                change:
-                    Number(
-                        quote["09. change"]
-                    ),
-
-                changePercent:
-                    quote["10. change percent"] ||
-                    "0%"
-            });
-        } catch {
-            results.push({
-                symbol,
-                error: true
-            });
-        }
-    }
-
-    renderStocks(results);
-}
-
-function renderStocks(results) {
-    elements.stocksContent.innerHTML =
-        "";
-
-    if (!results.length) {
-        renderStocksEmpty();
-        return;
-    }
-
-    const list =
-        document.createElement("div");
-
-    list.className =
-        "stock-list";
-
-    results.forEach(stock => {
-        const row =
-            document.createElement("div");
-
-        row.className =
-            "stock-row";
-
-        const identity =
-            document.createElement("div");
-
-        const symbol =
-            document.createElement("div");
-
-        symbol.className =
-            "stock-symbol";
-
-        symbol.textContent =
-            stock.symbol;
-
-        const name =
-            document.createElement("span");
-
-        name.className =
-            "stock-name";
-
-        name.textContent =
-            stock.error
-                ? "Data unavailable"
-                : "Market quote";
-
-        identity.appendChild(symbol);
-        identity.appendChild(name);
-
-        const price =
-            document.createElement("div");
-
-        price.className =
-            "stock-price";
-
-        price.textContent =
-            stock.error
-                ? "—"
-                : formatStockPrice(
-                    stock.price
-                );
-
-        const change =
-            document.createElement("div");
-
-        if (stock.error) {
-            change.className =
-                "stock-change stock-neutral";
-
-            change.textContent =
-                "Unavailable";
-        } else {
-            const numericChange =
-                Number(
-                    stock.change || 0
-                );
-
-            change.className =
-                `stock-change ${
-                    numericChange > 0
-                        ? "stock-up"
-                        : numericChange < 0
-                            ? "stock-down"
-                            : "stock-neutral"
-                }`;
-
-            change.textContent =
-                `${numericChange > 0 ? "+" : ""}${numericChange.toFixed(2)} (${stock.changePercent})`;
-        }
-
-        row.appendChild(identity);
-        row.appendChild(price);
-        row.appendChild(change);
-
-        list.appendChild(row);
-    });
-
-    elements.stocksContent.appendChild(
-        list
-    );
-
-    const note =
-        document.createElement("div");
-
-    note.className =
-        "settings-description";
-
-    note.style.marginTop =
-        "12px";
-
-    note.textContent =
-        "Market data may be delayed depending on the provider and account.";
-
-    elements.stocksContent.appendChild(
-        note
-    );
-}
-
-function renderStocksEmpty() {
-    elements.stocksContent.innerHTML = `
-        <div class="widget-empty">
-            <span class="widget-icon">↗</span>
-            <p>Add stocks and a provider in Settings.</p>
-            <button id="stockAddButtonInner" class="primary-small-button">
-                Configure
-            </button>
-        </div>
-    `;
-
-    document
-        .getElementById(
-            "stockAddButtonInner"
-        )
-        .addEventListener(
-            "click",
-            openSettings
-        );
-}
-
-function formatStockPrice(value) {
-    if (!Number.isFinite(value)) {
-        return "—";
-    }
-
-    return new Intl.NumberFormat(
-        undefined,
-        {
-            maximumFractionDigits: 2,
-            minimumFractionDigits: 2
-        }
-    ).format(value);
-}
-
-function openModeModal() {
-    elements.modeNameInput.value = "";
-    elements.modeKeywordsInput.value = "";
-    elements.modeDomainsInput.value = "";
-    elements.modeFreshnessInput.value = "0";
-    elements.modeTechnicalInput.value = "0";
-
-    openModal(elements.modeModal);
-}
-
-function saveCustomMode() {
-    const name =
-        elements.modeNameInput.value.trim();
-
-    if (!name) {
-        showToast(
-            "Enter a mode name"
-        );
-
-        return;
-    }
-
-    const id =
-        `custom_${Date.now()}`;
-
-    const mode = {
-        id,
-        name,
-
-        keywords:
-            elements.modeKeywordsInput.value
-                .split(",")
-                .map(value =>
-                    value.trim()
-                )
-                .filter(Boolean),
-
-        domains:
-            elements.modeDomainsInput.value
-                .split(",")
-                .map(value =>
-                    value.trim()
-                )
-                .filter(Boolean),
-
-        freshness:
-            Number(
-                elements.modeFreshnessInput.value ||
-                0
-            ),
-
-        technical:
-            Number(
-                elements.modeTechnicalInput.value ||
-                0
-            )
-    };
-
-    settings.customModes.push(
-        mode
-    );
-
-    settings.mode = id;
-
-    saveSettings();
-
-    addCustomModeToSelect(mode);
-
-    elements.modeSelect.value =
-        id;
-
-    closeModal("modeModal");
-
-    showToast("Mode created");
-
-    if (state.query) {
-        renderCurrentResults();
-    }
-}
-
-function addCustomModeToSelect(mode) {
-    const existing =
-        [...elements.modeSelect.options]
-            .find(
-                option =>
-                    option.value ===
-                    mode.id
-            );
-
-    if (existing) {
-        return;
-    }
-
-    const option =
-        document.createElement("option");
-
-    option.value =
-        mode.id;
-
-    option.textContent =
-        mode.name;
-
-    option.dataset.customMode =
-        "true";
-
-    elements.modeSelect.appendChild(
-        option
-    );
-}
-
-function populateCustomModes() {
-    settings.customModes.forEach(
-        addCustomModeToSelect
-    );
-}
-
-function startCustomization() {
-    closeSettings();
-
-    state.customization =
-        true;
-
-    document.body.classList.add(
-        "customizing"
-    );
-
-    elements.customizeUiButton.classList.add(
-        "hidden"
-    );
-
-    elements.saveLayoutButton.classList.remove(
-        "hidden"
-    );
-
-    elements.cancelLayoutButton.classList.remove(
-        "hidden"
-    );
-
-    enableDragElements();
-}
-
-function enableDragElements() {
-    const draggable = [
-        document.querySelector(
-            ".home-logo"
-        ),
-
-        document.querySelector(
-            ".home-search-form"
-        ),
-
-        ...document.querySelectorAll(
-            "[data-widget]"
-        )
-    ].filter(Boolean);
-
-    draggable.forEach(element => {
-        element.draggable = true;
-
-        element.addEventListener(
-            "dragstart",
-            handleDragStart
-        );
-
-        element.addEventListener(
-            "dragend",
-            handleDragEnd
-        );
-
-        element.addEventListener(
-            "dragover",
-            handleDragOver
-        );
-
-        element.addEventListener(
-            "drop",
-            handleDrop
-        );
-    });
-}
-
-function handleDragStart(event) {
-    if (!state.customization) {
-        event.preventDefault();
-        return;
-    }
-
-    state.draggedElement =
-        event.currentTarget;
-
-    event.currentTarget.classList.add(
-        "dragging"
-    );
-
-    event.dataTransfer.effectAllowed =
-        "move";
-}
-
-function handleDragEnd(event) {
-    event.currentTarget.classList.remove(
-        "dragging"
-    );
-
-    state.draggedElement = null;
-}
-
-function handleDragOver(event) {
-    if (!state.customization) {
-        return;
-    }
-
-    event.preventDefault();
-}
-
-function handleDrop(event) {
-    if (
-        !state.customization ||
-        !state.draggedElement
-    ) {
-        return;
-    }
-
-    event.preventDefault();
-
-    const target =
-        event.currentTarget;
-
-    if (
-        target ===
-        state.draggedElement
-    ) {
-        return;
-    }
-
-    const parent =
-        target.parentElement;
-
-    const rect =
-        target.getBoundingClientRect();
-
-    const after =
-        event.clientY >
-        rect.top +
-        rect.height / 2;
-
-    if (after) {
-        parent.insertBefore(
-            state.draggedElement,
-            target.nextSibling
-        );
-    } else {
-        parent.insertBefore(
-            state.draggedElement,
-            target
-        );
-    }
-}
-
-function saveLayout() {
-    const widgets =
-        [
-            ...document.querySelectorAll(
-                "[data-widget]"
-            )
-        ].map(
-            widget =>
-                widget.dataset.widget
-        );
-
-    settings.layout = {
-        widgets
-    };
-
-    saveSettings();
-
-    finishCustomization();
-
-    showToast(
-        "Layout saved"
-    );
-}
-
-function cancelCustomization() {
-    finishCustomization();
-    applySavedLayout();
-}
-
-function finishCustomization() {
-    state.customization =
-        false;
-
-    document.body.classList.remove(
-        "customizing"
-    );
-
-    elements.customizeUiButton.classList.remove(
-        "hidden"
-    );
-
-    elements.saveLayoutButton.classList.add(
-        "hidden"
-    );
-
-    elements.cancelLayoutButton.classList.add(
-        "hidden"
-    );
-
-    document
-        .querySelectorAll("[draggable]")
-        .forEach(element => {
-            element.draggable = false;
-        });
-}
-
-function applySavedLayout() {
-    const order =
-        settings.layout?.widgets;
-
-    if (
-        !Array.isArray(order) ||
-        !order.length
-    ) {
-        return;
-    }
-
-    const grid =
-        document.getElementById(
-            "homeWidgets"
-        );
-
-    for (const widgetId of order) {
-        const widget =
-            document.querySelector(
-                `[data-widget="${CSS.escape(widgetId)}"]`
-            );
-
-        if (widget) {
-            grid.appendChild(widget);
-        }
-    }
-}
-
-function exportSettings() {
-    const blob =
-        new Blob(
-            [
-                JSON.stringify(
-                    settings,
-                    null,
-                    2
-                )
-            ],
-            {
-                type:
-                    "application/json"
-            }
-        );
-
-    const url =
-        URL.createObjectURL(blob);
-
-    const anchor =
-        document.createElement("a");
-
-    anchor.href = url;
-
-    anchor.download =
-        "seerch-settings.json";
-
-    anchor.click();
-
-    URL.revokeObjectURL(url);
-}
-
-async function importSettings(event) {
-    const file =
-        event.target.files &&
-        event.target.files[0];
-
-    if (!file) {
-        return;
-    }
-
-    try {
-        const text =
-            await file.text();
-
-        const imported =
-            JSON.parse(text);
-
-        settings =
-            mergeSettings(
-                DEFAULT_SETTINGS,
-                imported
-            );
-
-        saveSettings();
-
-        applySettings();
-
-        populateSettingsUI();
-
-        document
-            .querySelectorAll(
-                "#modeSelect option[data-custom-mode]"
-            )
-            .forEach(option =>
-                option.remove()
-            );
-
-        populateCustomModes();
-
-        applySavedLayout();
-
-        if (settings.weatherLocation) {
-            loadWeather();
-        } else {
-            renderWeatherEmpty();
-        }
-
-        if (settings.stockSymbols.length) {
-            loadStocks();
-        } else {
-            renderStocksEmpty();
-        }
-
-        showToast(
-            "Settings imported"
-        );
-    } catch {
-        showToast(
-            "Could not import settings"
-        );
-    }
-
-    event.target.value = "";
-}
-
-function resetSettings() {
-    const confirmed =
-        window.confirm(
-            "Reset all SEErch² settings stored in this browser?"
-        );
-
-    if (!confirmed) {
-        return;
-    }
-
-    settings =
-        structuredClone(
-            DEFAULT_SETTINGS
-        );
-
-    localStorage.removeItem(
-        "seerch_settings"
-    );
-
-    localStorage.removeItem(
-        "seerch_custom_font"
-    );
-
-    saveSettings();
-
-    applySettings();
-
-    document
-        .querySelectorAll(
-            "#modeSelect option[data-custom-mode]"
-        )
-        .forEach(option =>
-            option.remove()
-        );
-
-    populateSettingsUI();
-
-    renderWeatherEmpty();
-    renderStocksEmpty();
-
-    showToast(
-        "Settings reset"
-    );
-}
-
-function handleKeyboard(event) {
-    if (
-        event.key === "/" &&
-        document.activeElement?.tagName !==
-            "INPUT"
-    ) {
-        event.preventDefault();
-
-        const input =
-            elements.resultsPage.classList.contains(
-                "hidden"
-            )
-                ? elements.homeSearchInput
-                : elements.topSearchInput;
-
-        input.focus();
-    }
-
-    if (
-        (event.ctrlKey ||
-            event.metaKey) &&
-        event.key.toLowerCase() === "k"
-    ) {
-        event.preventDefault();
-
-        const input =
-            elements.resultsPage.classList.contains(
-                "hidden"
-            )
-                ? elements.homeSearchInput
-                : elements.topSearchInput;
-
-        input.focus();
-    }
-
-    if (event.key === "Escape") {
-        closeSettings();
-        closeModal(
-            "customThemeModal"
-        );
-        closeModal(
-            "locationModal"
-        );
-        closeModal(
-            "modeModal"
-        );
-        closeImageViewer();
-    }
-}
-
-function openImageViewer(index) {
-    const image =
-        state.imageItems[index];
-
-    if (!image) {
-        return;
-    }
-
-    elements.viewerImage.src =
-        image.url;
-
-    elements.viewerImage.alt =
-        image.title ||
-        image.pageTitle ||
-        "Image";
-
-    elements.viewerImageTitle.textContent =
-        image.title ||
-        image.pageTitle ||
-        "Image";
-
-    elements.viewerImageSource.textContent =
-        image.pageUrl ||
-        "";
-
-    elements.viewerImageDownload.href =
-        image.url;
-
-    elements.viewerImageUrl.href =
-        image.url;
-
-    elements.viewerImagePage.href =
-        image.pageUrl ||
-        "#";
-
-    elements.imageViewer.classList.remove(
-        "hidden"
-    );
-}
-
-function closeImageViewer() {
-    elements.imageViewer.classList.add(
-        "hidden"
-    );
-
-    elements.viewerImage.src = "";
-}
-
-function goHome() {
-    elements.resultsPage.classList.add(
-        "hidden"
-    );
-
-    elements.homePage.classList.remove(
-        "hidden"
-    );
-
-    elements.topSearchWrap.classList.add(
-        "hidden"
-    );
-
-    window.scrollTo({
-        top: 0,
-        behavior: "smooth"
-    });
-}
-
-function saveHistory(query) {
-    let history = [];
-
-    try {
-        history =
-            JSON.parse(
-                localStorage.getItem(
-                    "seerch_history"
-                ) || "[]"
-            );
-    } catch {
-        history = [];
-    }
-
-    history = [
-        query,
-        ...history.filter(
-            item => item !== query
-        )
-    ].slice(0, 100);
-
-    localStorage.setItem(
-        "seerch_history",
-        JSON.stringify(history)
-    );
-}
-
-function loadSettings() {
-    let stored = {};
-
-    try {
-        stored =
-            JSON.parse(
-                localStorage.getItem(
-                    "seerch_settings"
-                ) || "{}"
-            );
-    } catch {
-        stored = {};
-    }
-
-    return mergeSettings(
-        DEFAULT_SETTINGS,
-        stored
-    );
-}
-
-function mergeSettings(
-    base,
-    override
-) {
-    const result =
-        structuredClone(base);
-
-    if (
-        !override ||
-        typeof override !== "object"
-    ) {
-        return result;
-    }
-
-    Object.keys(result).forEach(
-        key => {
-            if (
-                override[key] ===
-                undefined
-            ) {
-                return;
-            }
-
-            if (
-                result[key] &&
-                typeof result[key] ===
-                    "object" &&
-                !Array.isArray(
-                    result[key]
-                ) &&
-                override[key] &&
-                typeof override[key] ===
-                    "object" &&
-                !Array.isArray(
-                    override[key]
-                )
-            ) {
-                result[key] = {
-                    ...result[key],
-                    ...override[key]
-                };
-            } else {
-                result[key] =
-                    override[key];
-            }
-        }
-    );
-
-    return result;
-}
-
-function saveSettings() {
-    localStorage.setItem(
-        "seerch_settings",
-        JSON.stringify(settings)
-    );
-}
-
-function showToast(message) {
-    elements.toast.textContent =
-        message;
-
-    elements.toast.classList.add(
-        "show"
-    );
-
-    clearTimeout(
-        showToast.timer
-    );
-
-    showToast.timer =
-        setTimeout(() => {
-            elements.toast.classList.remove(
-                "show"
-            );
-        }, 2500);
-}
-
-function arrayBufferToBase64(buffer) {
-    let binary = "";
-
-    const bytes =
-        new Uint8Array(buffer);
-
-    const chunkSize =
-        0x8000;
-
-    for (
-        let i = 0;
-        i < bytes.length;
-        i += chunkSize
-    ) {
-        binary += String.fromCharCode(
-            ...bytes.subarray(
-                i,
-                Math.min(
-                    i + chunkSize,
-                    bytes.length
-                )
-            )
-        );
-    }
-
-    return btoa(binary);
-}
-
-function adjustColor(
-    hex,
-    amount
-) {
-    const value =
-        hex.replace("#", "");
-
-    if (value.length !== 6) {
-        return hex;
-    }
-
-    const num =
-        parseInt(value, 16);
-
-    const r =
-        Math.max(
-            0,
-            Math.min(
-                255,
-                ((num >> 16) & 255) +
-                    amount
-            )
-        );
-
-    const g =
-        Math.max(
-            0,
-            Math.min(
-                255,
-                ((num >> 8) & 255) +
-                    amount
-            )
-        );
-
-    const b =
-        Math.max(
-            0,
-            Math.min(
-                255,
-                (num & 255) +
-                    amount
-            )
-        );
-
-    return `#${[
-        r,
-        g,
-        b
-    ]
-        .map(
-            value =>
-                value
-                    .toString(16)
-                    .padStart(2, "0")
-        )
-        .join("")}`;
-      }
+const $=s=>document.querySelector(s);
+const $$=s=>Array.from(document.querySelectorAll(s));
+const clone=o=>JSON.parse(JSON.stringify(o));
+
+function openDB(){
+return new Promise((resolve,reject)=>{
+const req=indexedDB.open(DB_NAME,DB_VERSION);
+req.onupgradeneeded=()=>{
+const d=req.result;
+["settings","history","themes","layouts","modes","widgets","customCss","fonts","ai","media"].forEach(name=>{
+if(!d.objectStoreNames.contains(name)) d.createObjectStore(name,{keyPath:"id"});
+});
+};
+req.onsuccess=()=>resolve(req.result);
+req.onerror=()=>reject(req.error);
+});
+}
+
+function dbGet(store,id){
+return new Promise((resolve,reject)=>{
+const tx=db.transaction(store,"readonly");
+const req=tx.objectStore(store).get(id);
+req.onsuccess=()=>resolve(req.result||null);
+req.onerror=()=>reject(req.error);
+});
+}
+
+function dbPut(store,value){
+return new Promise((resolve,reject)=>{
+const tx=db.transaction(store,"readwrite");
+tx.objectStore(store).put(value);
+tx.oncomplete=()=>resolve(value);
+tx.onerror=()=>reject(tx.error);
+});
+}
+
+function dbDelete(store,id){
+return new Promise((resolve,reject)=>{
+const tx=db.transaction(store,"readwrite");
+tx.objectStore(store).delete(id);
+tx.oncomplete=()=>resolve();
+tx.onerror=()=>reject(tx.error);
+});
+}
+
+function dbAll(store){
+return new Promise((resolve,reject)=>{
+const tx=db.transaction(store,"readonly");
+const req=tx.objectStore(store).getAll();
+req.onsuccess=()=>resolve(req.result||[]);
+req.onerror=()=>reject(req.error);
+});
+}
+
+async function loadSettings(){
+const saved=await dbGet("settings","main");
+settings=merge(DEFAULT_SETTINGS,saved?.value||{});
+await dbPut("settings",{id:"main",value:settings});
+}
+
+function merge(base,extra){
+const out=clone(base);
+for(const [k,v] of Object.entries(extra||{})){
+if(v&&typeof v==="object"&&!Array.isArray(v)&&out[k]&&typeof out[k]==="object"&&!Array.isArray(out[k])) out[k]=merge(out[k],v);
+else out[k]=v;
+}
+return out;
+}
+
+async function saveSettings(){
+await dbPut("settings",{id:"main",value:settings});
+applySettings();
+}
+
+function applySettings(){
+const root=document.documentElement;
+root.style.setProperty("--font",settings.font);
+for(const [k,v] of Object.entries(settings.colors)) root.style.setProperty("--"+camelToKebab(k),v);
+root.style.setProperty("--wallpaper-opacity",settings.wallpaperEnabled&&settings.wallpaper?String(1-settings.wallpaperDim):"0");
+root.style.setProperty("--wallpaper-overlay",settings.wallpaperEnabled&&settings.wallpaper?`rgba(0,0,0,${settings.wallpaperDim})`:"transparent");
+const wallpaper=$("#wallpaper");
+if(settings.wallpaperEnabled&&settings.wallpaper){
+wallpaper.style.backgroundImage=`url(${settings.wallpaper.url})`;
+}else wallpaper.style.backgroundImage="none";
+applyTheme();
+applyCustomCss();
+renderHomeWidgets();
+}
+
+function camelToKebab(s){return s.replace(/[A-Z]/g,m=>"-"+m.toLowerCase())}
+
+function applyTheme(){
+if(settings.theme==="dark"){
+document.documentElement.style.colorScheme="dark";
+if(settings.colors.bg==="#f4f5f7") setDarkColors();
+}else if(settings.theme==="light"){
+document.documentElement.style.colorScheme="light";
+}else{
+const dark=matchMedia("(prefers-color-scheme: dark)").matches;
+document.documentElement.style.colorScheme=dark?"dark":"light";
+if(settings.colors.bg==="#f4f5f7"&&dark) setDarkColors();
+}
+}
+
+function setDarkColors(){
+const root=document.documentElement;
+root.style.setProperty("--bg","#101216");
+root.style.setProperty("--surface","#181b21");
+root.style.setProperty("--surface-2","#22262d");
+root.style.setProperty("--text","#f2f4f7");
+root.style.setProperty("--muted","#a5abb5");
+root.style.setProperty("--border","#303640");
+root.style.setProperty("--accent","#78a6ff");
+root.style.setProperty("--accent-text","#0b1220");
+}
+
+function applyCustomCss(){
+let node=$("#customCssNode");
+if(!node){
+node=document.createElement("style");
+node.id="customCssNode";
+document.head.appendChild(node);
+}
+node.textContent=settings.customCssEnabled?settings.customCss:"";
+}
+
+function toast(text){
+const el=$("#toast");
+el.textContent=text;
+el.classList.remove("hidden");
+clearTimeout(toast.timer);
+toast.timer=setTimeout(()=>el.classList.add("hidden"),2600);
+}
+
+function showPage(page){
+state.page=page;
+$("#homePage").classList.toggle("hidden",page!=="home");
+$("#resultsPage").classList.toggle("hidden",page!=="results");
+if(page==="home") location.hash="home";
+}
+
+async function search(query,reset=true){
+query=query.trim();
+if(!query)return;
+if(reset){
+state.pageNumber=1;
+state.results=[];
+state.hasMore=true;
+}
+state.query=query;
+state.loading=true;
+state.searchToken++;
+const token=state.searchToken;
+showPage("results");
+$("#resultsSearchInput").value=query;
+renderResults();
+try{
+const url=new URL(API_URL+"/search");
+url.searchParams.set("q",query);
+url.searchParams.set("page",String(state.pageNumber));
+url.searchParams.set("limit",String(state.limit));
+const response=await fetch(url,{headers:{Accept:"application/json"}});
+if(!response.ok)throw new Error("Search request failed");
+const data=await response.json();
+if(token!==state.searchToken)return;
+let incoming=Array.isArray(data.results)?data.results:[];
+incoming=applyMode(incoming);
+if(reset)state.results=incoming;
+else state.results=[...state.results,...incoming];
+state.hasMore=incoming.length>=state.limit;
+if(settings.historyEnabled&&reset)await addHistory(query);
+}catch(error){
+if(token===state.searchToken) toast(error.message||"Search failed");
+}finally{
+if(token===state.searchToken){
+state.loading=false;
+renderResults();
+}
+}
+}
+
+async function loadMore(){
+if(state.loading||!state.hasMore||!state.query)return;
+state.pageNumber++;
+await search(state.query,false);
+}
+
+function applyMode(results){
+if(settings.mode==="default")return results;
+const mode=settings.customModes.find(m=>m.id===settings.mode);
+if(!mode)return results;
+const keywords=(mode.keywords||"").toLowerCase().split(",").map(x=>x.trim()).filter(Boolean);
+const domains=(mode.domains||"").toLowerCase().split(",").map(x=>x.trim()).filter(Boolean);
+return [...results].map(r=>{
+let bonus=0;
+const hay=(r.title+" "+r.description+" "+r.url).toLowerCase();
+keywords.forEach(k=>{if(k&&hay.includes(k))bonus+=mode.keywordWeight||5});
+domains.forEach(d=>{try{if(new URL(r.url).hostname.toLowerCase().includes(d))bonus+=mode.domainWeight||8}catch{}});
+if(mode.freshness&&/202[5-9]|2030/.test(hay))bonus+=mode.freshness;
+if(mode.technical&&/(api|documentation|developer|github|programming|software|technical)/.test(hay))bonus+=mode.technical;
+return {...r,_modeScore:(Number(r.score)||0)+bonus};
+}).sort((a,b)=>(b._modeScore||0)-(a._modeScore||0));
+}
+
+function renderResults(){
+const list=$("#resultsList");
+if(!state.query){
+list.innerHTML='<div class="empty">Start a search.</div>';
+return;
+}
+const filtered=filterResults(state.results);
+$("#resultsMeta").textContent=`${state.query} · ${filtered.length} loaded${settings.mode!=="default"?" · mode: "+getModeName():""}`;
+if(!filtered.length){
+list.innerHTML=state.loading?'<div class="empty">Searching...</div>':'<div class="empty">No results for this tab.</div>';
+return;
+}
+list.innerHTML=filtered.map(renderResultCard).join("");
+if(state.loading)list.insertAdjacentHTML("beforeend",'<div class="empty">Loading...</div>');
+else if(state.hasMore&&settings.resultMode==="loadmore")list.insertAdjacentHTML("beforeend",'<div class="settings-actions" style="justify-content:center"><button id="loadMoreButton" class="primary">Load more</button></div>');
+else if(state.hasMore&&settings.resultMode==="pages")list.insertAdjacentHTML("beforeend",'<div class="settings-actions" style="justify-content:center"><button id="nextPageButton" class="primary">Next page</button></div>');
+const loadMoreButton=$("#loadMoreButton"); if(loadMoreButton)loadMoreButton.onclick=loadMore;
+const nextPageButton=$("#nextPageButton"); if(nextPageButton)nextPageButton.onclick=loadMore;
+}
+
+function filterResults(results){
+if(state.tab==="web")return results;
+if(state.tab==="images")return results.filter(r=>Array.isArray(r.images)&&r.images.length);
+if(state.tab==="videos")return results.filter(r=>Array.isArray(r.videos)&&r.videos.length);
+if(state.tab==="news")return results.filter(r=>/news|bbc|reuters|apnews|cnn|guardian|nytimes|washingtonpost/i.test(r.url+" "+r.title+" "+r.description));
+return results;
+}
+
+function renderResultCard(r){
+const title=escapeHtml(r.title||r.url||"Untitled");
+const url=escapeHtml(r.url||"");
+const desc=escapeHtml(r.description||"");
+const score=settings.resultsLayout.showScores?`<div class="result-score">Score ${Number(r._modeScore??r.score??0).toFixed(3)}</div>`:"";
+const description=settings.resultsLayout.showDescriptions&&desc?`<div class="result-description">${desc}</div>`:"";
+const shownUrl=settings.resultsLayout.showUrls?`<div class="result-url">${url}</div>`:"";
+const media=state.tab==="images"?renderImages(r):state.tab==="videos"?renderVideos(r):renderMediaPreview(r);
+return `<article class="result-card ${settings.resultsLayout.compact?"compact":""}">
+<a class="result-title" href="${escapeAttr(r.url||"#")}" target="_blank" rel="noopener noreferrer">${title}</a>
+${shownUrl}${description}${score}${media}</article>`;
+}
+
+function renderMediaPreview(r){
+if(!r.images?.length&&!r.videos?.length)return"";
+return `<div class="result-media-strip">${renderImages(r,3)}${renderVideos(r,3)}</div>`;
+}
+
+function renderImages(r,max=99){
+return (r.images||[]).slice(0,max).map((img,i)=>{
+const src=img?.url;
+if(!src)return"";
+const alt=escapeHtml(img.alt||img.title||"Image");
+return `<div class="media-card"><button type="button" class="image-open" data-result-id="${r.id}" data-index="${i}"><img src="${escapeAttr(src)}" alt="${alt}" loading="lazy" referrerpolicy="no-referrer"><div class="media-body">${alt}</div></button></div>`;
+}).join("");
+}
+
+function renderVideos(r,max=99){
+return (r.videos||[]).slice(0,max).map((video,i)=>{
+const thumb=video?.thumbnail;
+const body=video?.title||"Open video";
+return `<div class="media-card"><button type="button" class="video-open" data-result-id="${r.id}" data-index="${i}">${thumb?`<img src="${escapeAttr(thumb)}" alt="" loading="lazy" referrerpolicy="no-referrer">`:'<div class="video-placeholder">Video</div>'}<div class="media-body">${escapeHtml(body)}</div></button></div>`;
+}).join("");
+}
+
+function openImage(resultId,index){
+const result=state.results.find(r=>String(r.id)===String(resultId));
+const image=result?.images?.[index];
+if(!image?.url)return;
+const root=$("#modalRoot");
+root.innerHTML=`<div class="modal-backdrop" data-close-modal><div class="modal"><div class="modal-header"><h2>Image</h2><button type="button" data-close-modal>Close</button></div><div class="modal-body"><img src="${escapeAttr(image.url)}" alt="${escapeAttr(image.alt||image.title||"Image")}" style="display:block;width:100%;max-height:65vh;object-fit:contain;border-radius:12px;background:var(--surface-2)" referrerpolicy="no-referrer"><p>${escapeHtml(image.alt||image.title||"")}</p><div class="settings-actions"><a class="icon-button" href="${escapeAttr(image.url)}" target="_blank" rel="noopener noreferrer">View image</a><a class="icon-button" href="${escapeAttr(image.url)}" download>Download</a><a class="icon-button" href="${escapeAttr(result.url)}" target="_blank" rel="noopener noreferrer">Source page</a></div></div></div></div>`;
+}
+
+function openVideo(resultId,index){
+const result=state.results.find(r=>String(r.id)===String(resultId));
+const video=result?.videos?.[index];
+if(video?.url)window.open(video.url,"_blank","noopener,noreferrer");
+}
+
+async function addHistory(query){
+const item={id:crypto.randomUUID(),query,createdAt:Date.now()};
+await dbPut("history",item);
+const all=(await dbAll("history")).sort((a,b)=>b.createdAt-a.createdAt);
+for(const old of all.slice(settings.historyLimit))await dbDelete("history",old.id);
+}
+
+async function getHistory(){
+return (await dbAll("history")).sort((a,b)=>b.createdAt-a.createdAt);
+}
+
+function getModeName(){
+if(settings.mode==="default")return"Default";
+return settings.customModes.find(m=>m.id===settings.mode)?.name||"Default";
+}
+
+async function renderHomeWidgets(){
+const container=$("#homeWidgets");
+if(!container)return;
+const layouts=settings.homepageLayout.filter(x=>x.visible!==false);
+container.innerHTML=layouts.map(renderWidgetByLayout).join("");
+await loadWeatherWidget();
+await loadStocksWidget();
+renderAllCustomWidgets();
+}
+
+function renderWidgetByLayout(item){
+if(item.type==="quote")return `<section class="widget span-${item.span||12}" data-widget-id="${item.id}"><div class="widget-title">Quote</div><div id="quoteWidget"></div><div class="widget-actions"><button type="button" data-refresh-quote>Refresh</button></div></section>`;
+if(item.type==="weather")return `<section class="widget span-${item.span||6}" data-widget-id="${item.id}"><div class="widget-title">Weather</div><div id="weatherWidget"><div class="drop-zone">Add a location in Settings.</div></div></section>`;
+if(item.type==="stocks")return `<section class="widget span-${item.span||6}" data-widget-id="${item.id}"><div class="widget-title">Stocks</div><div id="stocksWidget"><div class="drop-zone">Add symbols in Settings.</div></div></section>`;
+if(item.type==="custom")return `<section class="widget span-${item.span||6}" data-widget-id="${item.id}"><div id="customWidget-${escapeAttr(item.widgetId)}"></div></section>`;
+return"";
+}
+
+function renderQuote(){
+const quote=QUOTES[Math.floor(Math.random()*QUOTES.length)];
+const el=$("#quoteWidget");
+if(el)el.innerHTML=`<div class="quote-text">“${escapeHtml(quote.t)}”</div><div class="quote-source">${escapeHtml(quote.a)}</div>`;
+}
+
+async function loadWeatherWidget(){
+const el=$("#weatherWidget");
+if(!el)return;
+if(!settings.weatherLocation){el.innerHTML='<div class="drop-zone">Add a location in Settings.</div>';return}
+try{
+const loc=settings.weatherLocation;
+const url=new URL("https://api.open-meteo.com/v1/forecast");
+url.searchParams.set("latitude",loc.latitude);
+url.searchParams.set("longitude",loc.longitude);
+url.searchParams.set("current","temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m");
+url.searchParams.set("timezone","auto");
+const data=await fetch(url).then(r=>r.json());
+el.innerHTML=`<div><strong>${escapeHtml(loc.name)}</strong></div><div style="font-size:30px;margin-top:8px">${Math.round(data.current?.temperature_2m??0)}°</div><div class="quote-source">Humidity ${Math.round(data.current?.relative_humidity_2m??0)}% · Wind ${Math.round(data.current?.wind_speed_10m??0)} km/h</div>`;
+}catch{el.innerHTML='<div class="drop-zone">Weather unavailable.</div>'}
+}
+
+async function loadStocksWidget(){
+const el=$("#stocksWidget");
+if(!el)return;
+const symbols=settings.stockSymbols||[];
+if(!settings.stockApiKey||!symbols.length){el.innerHTML='<div class="drop-zone">Configure a stock provider and symbols in Settings.</div>';return}
+if(settings.stockProvider!=="alphavantage"){el.innerHTML='<div class="drop-zone">This provider is configured for future expansion.</div>';return}
+const rows=[];
+for(const symbol of symbols.slice(0,6)){
+try{
+const u=new URL("https://www.alphavantage.co/query");
+u.searchParams.set("function","GLOBAL_QUOTE");
+u.searchParams.set("symbol",symbol);
+u.searchParams.set("apikey",settings.stockApiKey);
+const data=await fetch(u).then(r=>r.json());
+const q=data["Global Quote"]||{};
+rows.push(`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border)"><span>${escapeHtml(symbol)}</span><strong>${escapeHtml(q["05. price"]||"Unavailable")}</strong></div>`);
+}catch{rows.push(`<div>${escapeHtml(symbol)} unavailable</div>`)}
+}
+el.innerHTML=rows.join("");
+}
+
+function openSettings(){
+$("#settingsContent").innerHTML=renderSettings();
+$("#settingsPanel").classList.remove("hidden");
+}
+
+function renderSettings(){
+return `
+<section class="settings-section"><h3>Appearance</h3>
+<div class="settings-row"><label>Theme</label><select id="setTheme"><option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option></select></div>
+<div class="settings-actions"><button id="customThemeButton">Custom theme</button><button id="fontButton">Font</button><button id="wallpaperButton">Wallpaper</button><button id="musicButton">Background music</button></div>
+</section>
+<section class="settings-section"><h3>Results loading</h3><div class="settings-row"><label>Loading mode</label><select id="resultMode"><option value="infinite">Infinite scroll</option><option value="loadmore">Load more</option><option value="pages">Page-wise</option></select></div></section><section class="settings-section"><h3>Storage</h3>
+<div class="settings-row"><label>Save local history</label><input id="historyEnabled" type="checkbox"></div>
+<div class="settings-row"><label>History limit</label><input id="historyLimit" type="number" min="10" max="1000"></div>
+<div class="settings-actions"><button id="historyButton">View history</button><button id="clearHistoryButton" class="danger">Clear history</button></div>
+</section>
+<section class="settings-section"><h3>Safe Search</h3>
+<select id="safeSearch"><option value="extreme">Extreme</option><option value="normal">Normal</option><option value="minimal">Minimal</option><option value="truth">Truth</option></select>
+<p class="quote-source">Truth minimizes content filtering. Third-party results can be inaccurate, unsuitable, or disturbing.</p>
+</section>
+<section class="settings-section"><h3>Weather</h3>
+<div class="settings-row"><label>Location</label><input id="weatherLocationName" type="text" value="${escapeAttr(settings.weatherLocation?.name||"")}" placeholder="City"></div>
+<div class="settings-actions"><button id="weatherFindButton">Find location</button><button id="weatherUseLocationButton">Use my location</button></div>
+</section>
+<section class="settings-section"><h3>Stocks</h3>
+<div class="settings-row"><label>Provider</label><select id="stockProvider"><option value="alphavantage">Alpha Vantage</option></select></div>
+<div class="settings-row"><label>API key</label><input id="stockApiKey" type="password" value="${escapeAttr(settings.stockApiKey||"")}"></div>
+<div class="settings-row"><label>Symbols</label><input id="stockSymbols" type="text" value="${escapeAttr((settings.stockSymbols||[]).join(", "))}" placeholder="AAPL, MSFT"></div>
+<div class="settings-actions"><button id="saveStocks" class="primary">Save stocks</button></div>
+</section>
+<section class="settings-section"><h3>Modes</h3>
+<div class="settings-row"><label>Active mode</label><select id="activeMode"></select></div>
+<div class="settings-actions"><button id="createModeButton" class="primary">Create mode</button><button id="tutorialModeButton">How modes work</button><button id="manageModesButton">Manage modes</button></div>
+</section>
+<section class="settings-section"><h3>Widgets</h3>
+<div class="settings-actions"><button id="widgetCreatorButton" class="primary">Widget creator</button><button id="scriptWidgetButton">Import script.js</button><button id="manageWidgetsButton">Manage widgets</button></div>
+</section>
+<section class="settings-section"><h3>UI</h3>
+<div class="settings-actions"><button id="homepageEditorButton" class="primary">Edit homepage</button><button id="resultsEditorButton">Edit results page</button><button id="customCssButton">Custom CSS</button></div>
+</section>
+<section class="settings-section"><h3>AI</h3>
+<div class="settings-row"><label>Enable AI</label><input id="aiEnabled" type="checkbox"></div>
+<div class="settings-row"><label>Provider</label><input id="aiProvider" type="text"></div>
+<div class="settings-row"><label>Endpoint</label><input id="aiBaseUrl" type="url"></div>
+<div class="settings-row"><label>Model</label><input id="aiModel" type="text"></div>
+<div class="settings-row"><label>API key</label><input id="aiApiKey" type="password"></div>
+<div class="settings-actions"><button id="saveAiButton">Save AI settings</button></div>
+</section>
+<section class="settings-section"><h3>Easter eggs</h3>
+<div class="settings-row"><label>Enable Easter eggs</label><input id="easterEggs" type="checkbox"></div>
+</section>
+<section class="settings-section"><h3>Backup</h3>
+<div class="settings-actions"><button id="exportButton">Export settings</button><button id="importButton">Import settings</button><input id="importInput" type="file" accept=".json" class="hidden"></div>
+</section>`;
+}
+
+async function bindSettings(){
+$("#setTheme").value=settings.theme;
+$("#historyEnabled").checked=settings.historyEnabled;
+$("#resultMode").value=settings.resultMode;
+$("#historyLimit").value=settings.historyLimit;
+$("#safeSearch").value=settings.safeSearch;
+$("#easterEggs").checked=settings.easterEggs;
+const modeSelect=$("#activeMode");
+modeSelect.innerHTML=`<option value="default">Default</option>`+settings.customModes.map(m=>`<option value="${escapeAttr(m.id)}">${escapeHtml(m.name)}</option>`).join("");
+modeSelect.value=settings.mode;
+$("#aiEnabled").checked=settings.ai.enabled;
+$("#aiProvider").value=settings.ai.provider;
+$("#aiBaseUrl").value=settings.ai.baseUrl;
+$("#aiModel").value=settings.ai.model;
+$("#aiApiKey").value=settings.ai.apiKey;
+$("#setTheme").onchange=async e=>{settings.theme=e.target.value;await saveSettings()};
+$("#historyEnabled").onchange=async e=>{settings.historyEnabled=e.target.checked;await saveSettings()}; $("#resultMode").onchange=async e=>{settings.resultMode=e.target.value;await saveSettings()};
+$("#historyLimit").onchange=async e=>{settings.historyLimit=Math.max(10,Math.min(1000,Number(e.target.value)||100));await saveSettings()};
+$("#safeSearch").onchange=async e=>{settings.safeSearch=e.target.value;await saveSettings()};
+$("#stockProvider").value=settings.stockProvider||"alphavantage";
+$("#weatherFindButton").onclick=async()=>{
+const q=$("#weatherLocationName").value.trim();
+if(!q)return;
+const u=new URL("https://geocoding-api.open-meteo.com/v1/search");
+u.searchParams.set("name",q);u.searchParams.set("count","5");u.searchParams.set("language","en");u.searchParams.set("format","json");
+try{
+const data=await fetch(u).then(r=>r.json());
+const places=data.results||[];
+if(!places.length){toast("Location not found");return}
+openModal("Choose location",places.map((p,i)=>`<button data-location-index="${i}" style="display:block;width:100%;text-align:left;margin:7px 0;border:1px solid var(--border);background:var(--surface);color:var(--text);padding:10px;border-radius:9px">${escapeHtml(p.name)}, ${escapeHtml(p.country||"")}</button>`).join(""));
+$$("[data-location-index]").forEach(b=>b.onclick=async()=>{const p=places[Number(b.dataset.locationIndex)];settings.weatherLocation={name:p.name+", "+(p.country||""),latitude:p.latitude,longitude:p.longitude};await saveSettings();closeModal();openSettings()});
+}catch{toast("Location lookup failed")}
+};
+$("#weatherUseLocationButton").onclick=()=>navigator.geolocation.getCurrentPosition(async pos=>{
+const {latitude,longitude}=pos.coords;
+settings.weatherLocation={name:"Current location",latitude,longitude};
+await saveSettings();openSettings();
+},()=>toast("Location permission was not granted"));
+$("#saveStocks").onclick=async()=>{
+settings.stockProvider=$("#stockProvider").value;
+settings.stockApiKey=$("#stockApiKey").value.trim();
+settings.stockSymbols=$("#stockSymbols").value.split(",").map(x=>x.trim().toUpperCase()).filter(Boolean);
+await saveSettings();toast("Stocks saved");
+};
+$("#easterEggs").onchange=async e=>{settings.easterEggs=e.target.checked;await saveSettings()};
+modeSelect.onchange=async e=>{settings.mode=e.target.value;await saveSettings();renderResults()};
+$("#customThemeButton").onclick=()=>openCustomTheme();
+$("#fontButton").onclick=()=>openFontSettings();
+$("#wallpaperButton").onclick=()=>openWallpaperSettings();
+$("#musicButton").onclick=()=>openMusicSettings();
+$("#historyButton").onclick=()=>openHistory();
+$("#clearHistoryButton").onclick=clearHistory;
+$("#createModeButton").onclick=()=>openModeEditor();
+$("#tutorialModeButton").onclick=openModeTutorial;
+$("#manageModesButton").onclick=openModesManager;
+$("#widgetCreatorButton").onclick=()=>openWidgetCreator();
+$("#scriptWidgetButton").onclick=importWidgetScript;
+$("#manageWidgetsButton").onclick=openWidgetsManager;
+$("#homepageEditorButton").onclick=()=>openLayoutEditor("home");
+$("#resultsEditorButton").onclick=()=>openResultsEditor();
+$("#customCssButton").onclick=()=>openCssEditor();
+$("#saveAiButton").onclick=async()=>{
+settings.ai={enabled:$("#aiEnabled").checked,provider:$("#aiProvider").value.trim(),baseUrl:$("#aiBaseUrl").value.trim(),model:$("#aiModel").value.trim(),apiKey:$("#aiApiKey").value};
+await saveSettings();toast("AI settings saved");
+};
+$("#exportButton").onclick=exportSettings;
+$("#importButton").onclick=()=>$("#importInput").click();
+$("#importInput").onchange=importSettings;
+}
+
+function openModal(title,body){
+const root=$("#modalRoot");
+root.innerHTML=`<div class="modal-backdrop" data-close-modal><div class="modal"><div class="modal-header"><h2>${title}</h2><button type="button" data-close-modal>Close</button></div><div class="modal-body">${body}</div></div></div>`;
+}
+
+function closeModal(){$("#modalRoot").innerHTML=""}
+
+function openCustomTheme(){
+openModal("Custom theme",`<div class="color-grid" id="colorGrid">${Object.entries(settings.colors).map(([k,v])=>`<label>${escapeHtml(k)}<input data-color="${k}" type="color" value="${escapeAttr(v)}"></label>`).join("")}</div><div class="settings-actions"><button id="saveTheme" class="primary">Save theme</button></div>`);
+$("#saveTheme").onclick=async()=>{ $$("[data-color]").forEach(i=>settings.colors[i.dataset.color]=i.value);settings.theme="light";await saveSettings();closeModal();toast("Theme saved")};
+}
+
+function openFontSettings(){
+
+openModal("Font",`<label style="display:grid;gap:8px">CSS font stack<input id="fontValue" type="text" value="${escapeAttr(settings.font)}"></label><div class="settings-actions"><button id="saveFont" class="primary">Save font</button><button id="importFont">Import font</button></div>`);
+$("#saveFont").onclick=async()=>{settings.font=$("#fontValue").value.trim()||DEFAULT_SETTINGS.font;await saveSettings();closeModal()}; $("#importFont").onclick=openFontFile;
+}
+
+function openWallpaperSettings(){
+openModal("Wallpaper",`<div class="drop-zone"><input id="wallpaperFile" type="file" accept="image/*"></div><div class="settings-row"><label>Enable wallpaper</label><input id="wallpaperEnabled" type="checkbox" ${settings.wallpaperEnabled?"checked":""}></div><label style="display:grid;gap:8px">Dimming<input id="wallpaperDim" type="range" min="0" max="0.9" step="0.05" value="${settings.wallpaperDim}"></label><div class="settings-actions"><button id="saveWallpaper" class="primary">Save wallpaper</button><button id="removeWallpaper" class="danger">Remove wallpaper</button></div>`);
+$("#saveWallpaper").onclick=async()=>{
+const file=$("#wallpaperFile").files[0];
+if(file){
+const dataUrl=await fileToDataUrl(file);
+settings.wallpaper={name:file.name,type:file.type,url:dataUrl};
+}
+settings.wallpaperEnabled=$("#wallpaperEnabled").checked;
+settings.wallpaperDim=Number($("#wallpaperDim").value);
+await saveSettings();closeModal();
+};
+$("#removeWallpaper").onclick=async()=>{settings.wallpaper=null;settings.wallpaperEnabled=false;await saveSettings();closeModal()};
+}
+
+function openMusicSettings(){
+openModal("Background music",`<div class="drop-zone"><input id="musicFile" type="file" accept="audio/*"></div><div class="settings-row"><label>Enable music</label><input id="musicEnabled" type="checkbox" ${settings.musicEnabled?"checked":""}></div><label style="display:grid;gap:8px">Volume<input id="musicVolume" type="range" min="0" max="1" step="0.01" value="${settings.musicVolume}"></label><div class="settings-row"><label>Loop</label><input id="musicLoop" type="checkbox" ${settings.musicLoop?"checked":""}></div><p class="quote-source">Browsers may block automatic audio until the user interacts with the page.</p><div class="settings-actions"><button id="saveMusic" class="primary">Save music</button><button id="removeMusic" class="danger">Remove music</button></div>`);
+$("#saveMusic").onclick=async()=>{
+const file=$("#musicFile").files[0];
+if(file){
+const dataUrl=await fileToDataUrl(file);
+settings.music={name:file.name,type:file.type,url:dataUrl};
+}
+settings.musicEnabled=$("#musicEnabled").checked;
+settings.musicVolume=Number($("#musicVolume").value);
+settings.musicLoop=$("#musicLoop").checked;
+await saveSettings();closeModal();setupMusic();toast("Music saved");
+};
+$("#removeMusic").onclick=async()=>{settings.music=null;settings.musicEnabled=false;await saveSettings();closeModal();setupMusic()};
+}
+
+function setupMusic(){
+if(state.audio){state.audio.pause();state.audio.remove();state.audio=null}
+if(!settings.musicEnabled||!settings.music)return;
+const audio=new Audio(settings.music.url);
+audio.loop=settings.musicLoop;
+audio.volume=settings.musicVolume;
+audio.preload="auto";
+audio.id="backgroundMusic";
+document.body.appendChild(audio);
+state.audio=audio;
+const start=()=>{audio.play().catch(()=>{})};
+document.addEventListener("pointerdown",start,{once:true});
+document.addEventListener("keydown",start,{once:true});
+}
+
+async function openHistory(){
+const items=await getHistory();
+openModal("Local history",items.length?`<div>${items.map(x=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)"><button type="button" data-history-query="${escapeAttr(x.query)}" style="border:0;background:none;text-align:left;color:inherit">${escapeHtml(x.query)}</button><small>${new Date(x.createdAt).toLocaleString()}</small></div>`).join("")}</div>`:'<div class="empty">No history.</div>');
+$$("[data-history-query]").forEach(b=>b.onclick=()=>{closeModal();search(b.dataset.historyQuery)});
+}
+
+async function clearHistory(){
+for(const item of await dbAll("history"))await dbDelete("history",item.id);
+toast("History cleared");
+}
+
+function openModeTutorial(){
+openModal("How modes work",`<div class="empty" style="text-align:left"><strong>1. Truth25 creates the base order.</strong><p>Your mode never changes the index.</p><strong>2. Your preferences add local bonuses.</strong><p>Keywords, domains, freshness and technical signals can increase a result's local score.</p><strong>3. The browser sorts the loaded results.</strong><p>The mode is private to this browser and is not sent to the backend.</p><strong>4. Modes work best with matching search results.</strong><p>A small index or a query with no matching keywords can make a mode appear to do very little.</p></div>`);
+}
+
+function openModeEditor(existing=null){
+const m=existing||{id:crypto.randomUUID(),name:"",keywords:"",domains:"",keywordWeight:5,domainWeight:8,freshness:2,technical:3};
+openModal(existing?"Edit mode":"Create mode",`<div class="field-grid">
+<label>Name<input id="modeName" value="${escapeAttr(m.name)}"></label>
+<label>Keywords<input id="modeKeywords" value="${escapeAttr(m.keywords)}" placeholder="ai, software, programming"></label>
+<label>Preferred domains<input id="modeDomains" value="${escapeAttr(m.domains)}" placeholder="github.com, developer.mozilla.org"></label>
+<label>Keyword bonus<input id="modeKeywordWeight" type="number" value="${m.keywordWeight}"></label>
+<label>Domain bonus<input id="modeDomainWeight" type="number" value="${m.domainWeight}"></label>
+<label>Freshness bonus<input id="modeFreshness" type="number" value="${m.freshness}"></label>
+<label>Technical bonus<input id="modeTechnical" type="number" value="${m.technical}"></label>
+</div><div class="settings-actions"><button id="saveMode" class="primary">Save mode</button></div>`);
+$("#saveMode").onclick=async()=>{
+m.name=$("#modeName").value.trim()||"Untitled mode";
+m.keywords=$("#modeKeywords").value;
+m.domains=$("#modeDomains").value;
+m.keywordWeight=Number($("#modeKeywordWeight").value)||0;
+m.domainWeight=Number($("#modeDomainWeight").value)||0;
+m.freshness=Number($("#modeFreshness").value)||0;
+m.technical=Number($("#modeTechnical").value)||0;
+const index=settings.customModes.findIndex(x=>x.id===m.id);
+if(index>=0)settings.customModes[index]=m;else settings.customModes.push(m);
+settings.mode=m.id;
+await dbPut("modes",{id:m.id,value:m});
+await saveSettings();closeModal();openSettings();toast("Mode saved");
+};
+}
+
+function openModesManager(){
+openModal("Modes",`${settings.customModes.length?settings.customModes.map(m=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)"><span>${escapeHtml(m.name)}</span><span><button data-edit-mode="${m.id}">Edit</button> <button class="danger" data-delete-mode="${m.id}">Delete</button></span></div>`).join(""):'<div class="empty">No custom modes.</div>'}`);
+$$("[data-edit-mode]").forEach(b=>b.onclick=()=>{const m=settings.customModes.find(x=>x.id===b.dataset.editMode);openModeEditor(m)});
+$$("[data-delete-mode]").forEach(b=>b.onclick=async()=>{settings.customModes=settings.customModes.filter(x=>x.id!==b.dataset.deleteMode);if(settings.mode===b.dataset.deleteMode)settings.mode="default";await saveSettings();openModesManager()});
+}
+
+function openWidgetCreator(){
+const widget={id:crypto.randomUUID(),name:"",title:"",text:"",span:6,html:"",css:""};
+openModal("Widget creator",`<div class="field-grid"><label>Name<input id="widgetName"></label><label>Title<input id="widgetTitle"></label><label>Width<select id="widgetSpan"><option value="3">25%</option><option value="4">33%</option><option value="6" selected>50%</option><option value="8">67%</option><option value="12">100%</option></select></label><label>Text<input id="widgetText"></label></div><label style="display:grid;gap:6px;margin-top:12px">HTML<textarea id="widgetHtml" placeholder="Optional HTML"></textarea></label><label style="display:grid;gap:6px;margin-top:12px">CSS<textarea id="widgetCss" placeholder="Optional CSS"></textarea></label><div class="settings-actions"><button id="saveWidget" class="primary">Save widget</button></div>`);
+$("#saveWidget").onclick=async()=>{
+widget.name=$("#widgetName").value.trim()||"Widget";
+widget.title=$("#widgetTitle").value;
+widget.text=$("#widgetText").value;
+widget.span=Number($("#widgetSpan").value);
+widget.html=$("#widgetHtml").value;
+widget.css=$("#widgetCss").value;
+settings.widgetScripts.push(widget);
+await dbPut("widgets",{id:widget.id,value:widget});
+settings.homepageLayout.push({id:"widget-"+widget.id,type:"custom",widgetId:widget.id,span:widget.span,visible:true});
+await saveSettings();closeModal();toast("Widget created");
+};
+}
+
+function openWidgetsManager(){
+openModal("Widgets",settings.widgetScripts.length?settings.widgetScripts.map(w=>`<div style="display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)"><span>${escapeHtml(w.name)}</span><button class="danger" data-delete-widget="${w.id}">Delete</button></div>`).join(""):'<div class="empty">No custom widgets.</div>');
+$$("[data-delete-widget]").forEach(b=>b.onclick=async()=>{settings.widgetScripts=settings.widgetScripts.filter(w=>w.id!==b.dataset.deleteWidget);settings.homepageLayout=settings.homepageLayout.filter(x=>x.widgetId!==b.dataset.deleteWidget);await saveSettings();openWidgetsManager()});
+}
+
+async function importWidgetScript(){
+const input=document.createElement("input");
+input.type="file";
+input.accept=".js,text/javascript,application/javascript";
+input.onchange=async()=>{
+const file=input.files[0];
+if(!file)return;
+const script=await file.text();
+const widget={id:crypto.randomUUID(),name:file.name,title:file.name,text:"",span:6,html:"",css:"",script};
+settings.widgetScripts.push(widget);
+await dbPut("widgets",{id:widget.id,value:widget});
+settings.homepageLayout.push({id:"widget-"+widget.id,type:"script",widgetId:widget.id,span:6,visible:true});
+await saveSettings();
+toast("Script widget imported");
+};
+input.click();
+}
+
+function renderCustomWidget(widgetId,targetId){
+const w=settings.widgetScripts.find(x=>x.id===widgetId);
+const target=document.getElementById(targetId);
+if(!w||!target)return;
+target.innerHTML=`<div class="widget-title">${escapeHtml(w.title||w.name)}</div>${w.text?`<div>${escapeHtml(w.text)}</div>`:""}${w.html||""}`;
+if(w.css){
+const style=document.createElement("style");
+style.textContent=w.css;
+target.appendChild(style);
+}
+if(w.script){
+try{
+const fn=new Function("element","SEErch",w.script);
+fn(target,{version:"1",storage:{get:dbGet,put:dbPut},toast});
+}catch(error){target.insertAdjacentHTML("beforeend",`<div class="quote-source">Widget error: ${escapeHtml(error.message)}</div>`)}
+}
+}
+
+function renderAllCustomWidgets(){
+settings.widgetScripts.forEach(w=>{
+const targetId=`customWidget-${w.id}`;
+if(document.getElementById(targetId))renderCustomWidget(w.id,targetId);
+});
+}
+
+function openLayoutEditor(kind){
+if(kind==="home")openHomeEditor();else openResultsEditor();
+}
+
+function openHomeEditor(){
+openModal("Homepage editor",`<div class="editor-canvas" id="homeEditorCanvas">${settings.homepageLayout.map((item,i)=>`<div class="editor-item" data-layout-index="${i}"><div class="editor-item-toolbar"><strong>${escapeHtml(item.type)}</strong><span><button data-up="${i}">Up</button><button data-down="${i}">Down</button><button data-remove="${i}">Remove</button></span></div><div class="field-grid"><label>Width<select data-span="${i}"><option value="3">25%</option><option value="4">33%</option><option value="6">50%</option><option value="8">67%</option><option value="12">100%</option></select></label><label>Visible<select data-visible="${i}"><option value="true">Visible</option><option value="false">Hidden</option></select></label></div></div>`).join("")}</div><div class="settings-actions"><button id="addHomeWidget">Add widget</button><button id="saveHomeLayout" class="primary">Save layout</button><button id="resetHomeLayout">Reset</button></div>`);
+settings.homepageLayout.forEach((x,i)=>{const s=$(`[data-span="${i}"]`);if(s)s.value=x.span||6;const v=$(`[data-visible="${i}"]`);if(v)v.value=x.visible===false?"false":"true"});
+$$("[data-up]").forEach(b=>b.onclick=()=>moveLayout(Number(b.dataset.up),-1));
+$$("[data-down]").forEach(b=>b.onclick=()=>moveLayout(Number(b.dataset.down),1));
+$$("[data-remove]").forEach(b=>b.onclick=()=>{settings.homepageLayout.splice(Number(b.dataset.remove),1);openHomeEditor()});
+$$("[data-span]").forEach(s=>s.onchange=()=>settings.homepageLayout[Number(s.dataset.span)].span=Number(s.value));
+$$("[data-visible]").forEach(s=>s.onchange=()=>settings.homepageLayout[Number(s.dataset.visible)].visible=s.value==="true");
+$("#addHomeWidget").onclick=()=>openWidgetCreator();
+$("#saveHomeLayout").onclick=async()=>{await saveSettings();closeModal();toast("Homepage saved")};
+$("#resetHomeLayout").onclick=async()=>{settings.homepageLayout=clone(DEFAULT_SETTINGS.homepageLayout);await saveSettings();openHomeEditor()};
+}
+
+function moveLayout(index,delta){
+const next=index+delta;
+if(next<0||next>=settings.homepageLayout.length)return;
+[settings.homepageLayout[index],settings.homepageLayout[next]]=[settings.homepageLayout[next],settings.homepageLayout[index]];
+openHomeEditor();
+}
+
+function openResultsEditor(){
+openModal("Results page editor",`<div class="settings-row"><label>Show scores</label><input id="resultShowScores" type="checkbox" ${settings.resultsLayout.showScores?"checked":""}></div><div class="settings-row"><label>Show descriptions</label><input id="resultShowDescriptions" type="checkbox" ${settings.resultsLayout.showDescriptions?"checked":""}></div><div class="settings-row"><label>Show URLs</label><input id="resultShowUrls" type="checkbox" ${settings.resultsLayout.showUrls?"checked":""}></div><div class="settings-row"><label>Compact results</label><input id="resultCompact" type="checkbox" ${settings.resultsLayout.compact?"checked":""}></div><div class="settings-actions"><button id="saveResultsLayout" class="primary">Save results layout</button></div>`);
+$("#saveResultsLayout").onclick=async()=>{settings.resultsLayout={showScores:$("#resultShowScores").checked,showDescriptions:$("#resultShowDescriptions").checked,showUrls:$("#resultShowUrls").checked,compact:$("#resultCompact").checked};await saveSettings();closeModal();renderResults()};
+}
+
+function openCssEditor(){
+openModal("Custom CSS",`<textarea id="customCssValue" style="min-height:360px;width:100%">${escapeHtml(settings.customCss)}</textarea><div class="settings-row"><label>Enable custom CSS</label><input id="customCssEnabled" type="checkbox" ${settings.customCssEnabled?"checked":""}></div><div class="settings-actions"><button id="saveCss" class="primary">Save CSS</button><button id="importCss">Import .css</button></div>`);
+$("#saveCss").onclick=async()=>{settings.customCss=$("#customCssValue").value;settings.customCssEnabled=$("#customCssEnabled").checked;await saveSettings();closeModal()};
+$("#importCss").onclick=()=>{const input=document.createElement("input");input.type="file";input.accept=".css,text/css";input.onchange=async()=>{$("#customCssValue").value=await input.files[0].text()};input.click()};
+}
+
+async function openFontFile(){
+const input=document.createElement("input");
+input.type="file";
+input.accept=".woff,.woff2,.ttf,.otf";
+input.onchange=async()=>{
+const file=input.files[0];
+if(!file)return;
+const data=await file.arrayBuffer();
+const id="font-"+crypto.randomUUID();
+await dbPut("fonts",{id,name:file.name,type:file.type,data});
+const url=URL.createObjectURL(new Blob([data],{type:file.type}));
+const face=new FontFace("SEErchCustom",`url(${url})`);
+await face.load();
+document.fonts.add(face);
+settings.font="SEErchCustom,system-ui,sans-serif";
+await saveSettings();
+toast("Font imported");
+};
+input.click();
+}
+
+function openFontSettingsOriginal(){
+openFontSettings();
+}
+
+async function exportSettings(){
+const data={settings,history:settings.historyEnabled?await getHistory():[],modes:settings.customModes,widgets:settings.widgetScripts};
+const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+const url=URL.createObjectURL(blob);
+const a=document.createElement("a");
+a.href=url;a.download="seerchsq-settings.json";a.click();URL.revokeObjectURL(url);
+}
+
+async function importSettings(e){
+const file=e.target.files[0];
+if(!file)return;
+try{
+const data=JSON.parse(await file.text());
+settings=merge(DEFAULT_SETTINGS,data.settings||{});
+await saveSettings();
+for(const h of data.history||[])await dbPut("history",h);
+toast("Settings imported");
+}catch{toast("Invalid settings file")}
+e.target.value="";
+}
+
+function fileToDataUrl(file){
+return new Promise((resolve,reject)=>{
+const reader=new FileReader();
+reader.onload=()=>resolve(reader.result);
+reader.onerror=()=>reject(reader.error);
+reader.readAsDataURL(file);
+});
+}
+
+function escapeHtml(value){
+return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+}
+
+function escapeAttr(value){return escapeHtml(value)}
+
+function bindEvents(){
+$("#homeSearchForm").onsubmit=e=>{e.preventDefault();search($("#homeSearchInput").value)};
+$("#resultsSearchForm").onsubmit=e=>{e.preventDefault();search($("#resultsSearchInput").value)};
+$("#settingsButton").onclick=openSettings;
+$$("[data-tab]").forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;$$("[data-tab]").forEach(x=>x.classList.toggle("active",x===b));renderResults()});
+document.addEventListener("click",e=>{
+const image=e.target.closest(".image-open");
+if(image){openImage(image.dataset.resultId,Number(image.dataset.index));return}
+const video=e.target.closest(".video-open");
+if(video){openVideo(video.dataset.resultId,Number(video.dataset.index));return}
+if(e.target.matches("[data-refresh-quote]"))renderQuote();
+if(e.target.matches("[data-close-modal]")||e.target.closest("[data-close-modal]"))closeModal();
+if(e.target.matches("[data-close=\"settingsPanel\"]"))$("#settingsPanel").classList.add("hidden");
+});
+const observer=new IntersectionObserver(entries=>{if(entries.some(x=>x.isIntersecting))loadMore()},{rootMargin:"700px"});
+observer.observe($("#resultsSentinel"));
+window.addEventListener("hashchange",()=>{if(location.hash==="#home"||!location.hash)showPage("home")});
+window.addEventListener("scroll",()=>{if(state.page==="results"&&settings.resultMode==="infinite"&&window.innerHeight+window.scrollY>=document.body.offsetHeight-700)loadMore()});
+document.addEventListener("keydown",e=>{
+if(!settings.easterEggs)return;
+state.easterEggBuffer=(state.easterEggBuffer+e.key.toLowerCase()).slice(-20);
+if(state.easterEggBuffer.includes("seerch")){state.easterEggBuffer="";toast("You found an Easter egg.");}
+});
+}
+
+async function initialize(){
+db=await openDB();
+await loadSettings();
+bindEvents();
+await bindSettings();
+applySettings();
+renderQuote();
+setupMusic();
+showPage(location.hash==="#home"||!location.hash?"home":"results");
+if(location.hash.startsWith("#search=")){
+const q=decodeURIComponent(location.hash.slice(8));
+$("#homeSearchInput").value=q;
+await search(q);
+}
+}
+
+document.addEventListener("DOMContentLoaded",initialize);
