@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SEErch²</title>
+    <meta name="description" content="SEErch² search engine">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+
+        <header class="topbar">
+            <button id="brand" class="brand">SEErch²</button>
+
+            <div id="topSearchWrap" class="top-search-wrap hidden">
+                <form id="topSearchForm" class="top-search-form">
+                    <input id="topSearchInput" type="search" autocomplete="off" placeholder="Search the web">
+                    <button type="submit" aria-label="Search">⌕</button>
+                </form>
+            </div>
+
+            <button id="settingsButton" class="icon-button" aria-label="Settings">⚙</button>
+        </header>
+
+        <main>
+
+            <section id="homePage" class="page home-page">
+                <div class="home-content">
+
+                    <div class="home-logo">
+                        SEErch²
+                    </div>
+
+                    <form id="homeSearchForm" class="home-search-form">
+                        <input
+                            id="homeSearchInput"
+                            type="search"
+                            autocomplete="off"
+                            placeholder="Search the web"
+                        >
+                        <button type="submit">Search</button>
+                    </form>
+
+                    <div id="homeWidgets" class="widget-grid">
+
+                        <section class="widget" data-widget="weather">
+                            <div class="widget-header">
+                                <div>
+                                    <span class="widget-label">Weather</span>
+                                    <h2 id="weatherLocationName">Add your location</h2>
+                                </div>
+
+                                <button id="weatherSettingsButton" class="small-button">
+                                    Set
+                                </button>
+                            </div>
+
+                            <div id="weatherContent" class="widget-content">
+                                <div class="widget-empty">
+                                    <span class="widget-icon">☁</span>
+                                    <p>Add a location to see the current weather.</p>
+                                    <button id="weatherAddButton" class="primary-small-button">
+                                        Add location
+                                    </button>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="widget" data-widget="stocks">
+                            <div class="widget-header">
+                                <div>
+                                    <span class="widget-label">Stocks</span>
+                                    <h2>Watchlist</h2>
+                                </div>
+
+                                <button id="stockSettingsButton" class="small-button">
+                                    Set
+                                </button>
+                            </div>
+
+                            <div id="stocksContent" class="widget-content">
+                                <div class="widget-empty">
+                                    <span class="widget-icon">↗</span>
+                                    <p>Add stocks and a provider in Settings.</p>
+                                    <button id="stockAddButton" class="primary-small-button">
+                                        Configure
+                                    </button>
+                                </div>
+                            </div>
+                        </section>
+
+                    </div>
+                </div>
+            </section>
+
+            <section id="resultsPage" class="page results-page hidden">
+
+                <div class="results-tabs">
+                    <button class="result-tab active" data-tab="web">Web</button>
+                    <button class="result-tab" data-tab="images">Images</button>
+                    <button class="result-tab" data-tab="videos">Videos</button>
+                    <button class="result-tab" data-tab="news">News</button>
+                </div>
+
+                <div id="resultsMeta" class="results-meta"></div>
+
+                <div id="resultsContainer" class="results-container"></div>
+
+                <div id="loadMoreArea" class="load-more-area hidden">
+                    <button id="loadMoreButton" class="load-more-button">
+                        Load more
+                    </button>
+                </div>
+
+                <div id="pageNavigation" class="page-navigation hidden">
+                    <button id="previousPageButton">Previous</button>
+                    <span id="pageNumber">1</span>
+                    <button id="nextPageButton">Next</button>
+                </div>
+
+                <div id="resultsStatus" class="results-status"></div>
+
+            </section>
+
+        </main>
+    </div>
+
+    <aside id="settingsPanel" class="settings-panel">
+
+        <div class="settings-header">
+            <div>
+                <span class="settings-kicker">SEErch²</span>
+                <h2>Settings</h2>
+            </div>
+
+            <button id="closeSettingsButton" class="icon-button">
+                ×
+            </button>
+        </div>
+
+        <div class="settings-content">
+
+            <section class="settings-section">
+                <h3>Appearance</h3>
+
+                <label class="setting-row">
+                    <span>Theme</span>
+
+                    <select id="themeSelect">
+                        <option value="system">System</option>
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
+                        <option value="paper">Paper</option>
+                        <option value="amoled">AMOLED</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                </label>
+
+                <label class="setting-row">
+                    <span>Font</span>
+
+                    <select id="fontSelect">
+                        <option value="system">System</option>
+                        <option value="inter">Inter</option>
+                        <option value="arial">Arial</option>
+                        <option value="verdana">Verdana</option>
+                        <option value="georgia">Georgia</option>
+                        <option value="monospace">Monospace</option>
+                        <option value="custom">Imported</option>
+                    </select>
+                </label>
+
+                <label class="setting-row">
+                    <span>Accent</span>
+                    <input id="accentColorInput" type="color" value="#2563eb">
+                </label>
+
+                <button id="customThemeButton" class="settings-action">
+                    Create custom theme
+                </button>
+
+                <button id="fontImportButton" class="settings-action">
+                    Import font
+                </button>
+
+                <input
+                    id="fontFileInput"
+                    type="file"
+                    accept=".woff,.woff2,.ttf,.otf"
+                    hidden
+                >
+            </section>
+
+            <section class="settings-section">
+                <h3>Search</h3>
+
+                <label class="setting-row">
+                    <span>Result loading</span>
+
+                    <select id="resultModeSelect">
+                        <option value="infinite">Infinite scroll</option>
+                        <option value="loadmore">Load more</option>
+                        <option value="pages">Pages</option>
+                    </select>
+                </label>
+
+                <label class="setting-row checkbox-row">
+                    <span>Save search history locally</span>
+                    <input id="historyEnabledInput" type="checkbox">
+                </label>
+
+                <button id="clearHistoryButton" class="settings-action">
+                    Clear local history
+                </button>
+            </section>
+
+            <section class="settings-section">
+                <h3>Safe Search</h3>
+
+                <label class="setting-row">
+                    <span>Filtering</span>
+
+                    <select id="safeSearchSelect">
+                        <option value="extreme">Extreme</option>
+                        <option value="normal">Normal</option>
+                        <option value="minimal">Minimal</option>
+                        <option value="truth">Truth</option>
+                    </select>
+                </label>
+
+                <div id="truthWarning" class="warning-box hidden">
+                    Truth Mode minimizes content filtering. Some results may contain material that is unsuitable or disturbing. SEErch² does not guarantee the accuracy, safety, legality, or suitability of third-party content. Use with caution.
+                </div>
+            </section>
+
+            <section class="settings-section">
+                <h3>Weather</h3>
+
+                <div class="settings-description">
+                    Weather data is provided directly by Open-Meteo. Your selected location is stored locally in this browser.
+                </div>
+
+                <button id="weatherSettingsAction" class="settings-action">
+                    Set weather location
+                </button>
+
+                <button id="weatherUseLocationButton" class="settings-action">
+                    Use my location
+                </button>
+
+                <button id="weatherRemoveButton" class="settings-action danger-action">
+                    Remove weather location
+                </button>
+            </section>
+
+            <section class="settings-section">
+                <h3>Stocks</h3>
+
+                <div class="settings-description">
+                    Stock data is fetched using your selected provider. API keys are stored locally in this browser.
+                </div>
+
+                <label class="setting-row">
+                    <span>Provider</span>
+
+                    <select id="stockProviderSelect">
+                        <option value="alphavantage">Alpha Vantage</option>
+                    </select>
+                </label>
+
+                <label class="setting-row stacked-row">
+                    <span>API key</span>
+
+                    <input
+                        id="stockApiKeyInput"
+                        type="password"
+                        autocomplete="off"
+                        placeholder="Enter API key"
+                    >
+                </label>
+
+                <label class="setting-row stacked-row">
+                    <span>Watchlist</span>
+
+                    <input
+                        id="stockSymbolsInput"
+                        type="text"
+                        placeholder="AAPL, MSFT, IBM"
+                    >
+                </label>
+
+                <button id="saveStocksButton" class="settings-action">
+                    Save stock settings
+                </button>
+
+                <button id="refreshStocksButton" class="settings-action">
+                    Refresh stocks
+                </button>
+            </section>
+
+            <section class="settings-section">
+                <h3>Modes</h3>
+
+                <label class="setting-row">
+                    <span>Mode</span>
+
+                    <select id="modeSelect">
+                        <option value="default">Default</option>
+                        <option value="technology">Technology</option>
+                        <option value="ai">AI</option>
+                        <option value="news">News</option>
+                        <option value="academic">Academic</option>
+                    </select>
+                </label>
+
+                <button id="createModeButton" class="settings-action">
+                    Create custom mode
+                </button>
+            </section>
+
+            <section class="settings-section">
+                <h3>Interface</h3>
+
+                <button id="customizeUiButton" class="settings-action">
+                    Customize UI
+                </button>
+
+                <button id="saveLayoutButton" class="settings-action hidden">
+                    Save layout
+                </button>
+
+                <button id="cancelLayoutButton" class="settings-action hidden">
+                    Cancel customization
+                </button>
+            </section>
+
+            <section class="settings-section">
+                <h3>Data</h3>
+
+                <button id="exportSettingsButton" class="settings-action">
+                    Export settings
+                </button>
+
+                <button id="importSettingsButton" class="settings-action">
+                    Import settings
+                </button>
+
+                <input
+                    id="settingsFileInput"
+                    type="file"
+                    accept=".json,application/json"
+                    hidden
+                >
+
+                <button id="resetSettingsButton" class="settings-action danger-action">
+                    Reset settings
+                </button>
+            </section>
+
+        </div>
+    </aside>
+
+    <div id="settingsBackdrop" class="settings-backdrop"></div>
+
+    <div id="customThemeModal" class="modal hidden">
+        <div class="modal-card">
+
+            <div class="modal-header">
+                <h2>Custom Theme</h2>
+
+                <button class="modal-close" data-close-modal="customThemeModal">
+                    ×
+                </button>
+            </div>
+
+            <div class="modal-body">
+
+                <label class="modal-field">
+                    <span>Background</span>
+                    <input id="customBackgroundInput" type="color" value="#ffffff">
+                </label>
+
+                <label class="modal-field">
+                    <span>Surface</span>
+                    <input id="customSurfaceInput" type="color" value="#f7f7f7">
+                </label>
+
+                <label class="modal-field">
+                    <span>Text</span>
+                    <input id="customTextInput" type="color" value="#111111">
+                </label>
+
+                <label class="modal-field">
+                    <span>Muted text</span>
+                    <input id="customMutedInput" type="color" value="#666666">
+                </label>
+
+            </div>
+
+            <div class="modal-footer">
+                <button id="saveCustomThemeButton" class="primary-button">
+                    Save theme
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="locationModal" class="modal hidden">
+        <div class="modal-card">
+
+            <div class="modal-header">
+                <h2>Weather Location</h2>
+
+                <button class="modal-close" data-close-modal="locationModal">
+                    ×
+                </button>
+            </div>
+
+            <div class="modal-body">
+
+                <form id="locationSearchForm">
+
+                    <label class="modal-field">
+                        <span>Search city or place</span>
+
+                        <input
+                            id="locationSearchInput"
+                            type="text"
+                            autocomplete="off"
+                            placeholder="Search a city"
+                        >
+                    </label>
+
+                    <button type="submit" class="primary-button">
+                        Search
+                    </button>
+
+                </form>
+
+                <div id="locationResults" class="location-results"></div>
+
+                <div class="location-divider">
+                    <span>or</span>
+                </div>
+
+                <button id="modalUseLocationButton" class="secondary-button">
+                    Use my location
+                </button>
+
+            </div>
+
+        </div>
+    </div>
+
+    <div id="modeModal" class="modal hidden">
+        <div class="modal-card">
+
+            <div class="modal-header">
+                <h2>Create Mode</h2>
+
+                <button class="modal-close" data-close-modal="modeModal">
+                    ×
+                </button>
+            </div>
+
+            <div class="modal-body">
+
+                <label class="modal-field">
+                    <span>Name</span>
+                    <input id="modeNameInput" type="text" placeholder="My Mode">
+                </label>
+
+                <label class="modal-field">
+                    <span>Keywords</span>
+                    <input
+                        id="modeKeywordsInput"
+                        type="text"
+                        placeholder="technology, programming, software"
+                    >
+                </label>
+
+                <label class="modal-field">
+                    <span>Preferred domains</span>
+                    <input
+                        id="modeDomainsInput"
+                        type="text"
+                        placeholder="github.com, docs.python.org"
+                    >
+                </label>
+
+                <label class="modal-field">
+                    <span>Freshness</span>
+
+                    <select id="modeFreshnessInput">
+                        <option value="0">No preference</option>
+                        <option value="1">Very fresh</option>
+                        <option value="3">Fresh</option>
+                        <option value="7">Recent</option>
+                        <option value="30">Last month</option>
+                    </select>
+                </label>
+
+                <label class="modal-field">
+                    <span>Technical content preference</span>
+                    <input
+                        id="modeTechnicalInput"
+                        type="range"
+                        min="0"
+                        max="10"
+                        value="0"
+                    >
+                </label>
+
+            </div>
+
+            <div class="modal-footer">
+                <button id="saveModeButton" class="primary-button">
+                    Save mode
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="imageViewer" class="image-viewer hidden">
+
+        <div class="image-viewer-backdrop"></div>
+
+        <div class="image-viewer-card">
+
+            <button id="closeImageViewer" class="image-viewer-close">
+                ×
+            </button>
+
+            <div class="image-viewer-image-wrap">
+                <img id="viewerImage" src="" alt="">
+            </div>
+
+            <div class="image-viewer-details">
+                <h2 id="viewerImageTitle"></h2>
+                <p id="viewerImageSource"></p>
+
+                <div class="image-viewer-actions">
+
+                    <a
+                        id="viewerImageDownload"
+                        class="viewer-action"
+                        href="#"
+                        download
+                    >
+                        Download
+                    </a>
+
+                    <a
+                        id="viewerImageUrl"
+                        class="viewer-action"
+                        href="#"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        View image
+                    </a>
+
+                    <a
+                        id="viewerImagePage"
+                        class="viewer-action"
+                        href="#"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                    >
+                        Source webpage
+                    </a>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="app.js"></script>
+</body>
+                  </html>
