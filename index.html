@@ -1,163 +1,41 @@
-<!DOCTYPE html><html lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#111111">
-<title>SEErch²</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SEErch²</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div id="wallpaper"></div><header class="header">
-<a href="#" class="logo" id="logo">SEErch²</a>
-<div class="header-actions">
-<button id="settingsBtn" type="button">Settings</button>
-</div>
-</header><main>
-<section id="homePage" class="page">
-<div class="home">
-<form id="homeSearchForm" class="search-form">
-<input id="homeSearch" type="search" placeholder="Search the web" autocomplete="off">
-<button type="submit">Search</button>
-</form><div id="homeWidgets" class="widgets"></div>
-</div>
-</section><section id="resultsPage" class="page hidden">
-<div class="results-header">
-<form id="resultsSearchForm" class="search-form results-search">
-<input id="resultsSearch" type="search" placeholder="Search the web" autocomplete="off">
-<button type="submit">Search</button>
-</form>
-</div><nav class="tabs">
-<button type="button" data-tab="web" class="active">Web</button>
-<button type="button" data-tab="images">Images</button>
-<button type="button" data-tab="videos">Videos</button>
-<button type="button" data-tab="news">News</button>
-</nav><div id="resultsInfo" class="results-info"></div>
-<div id="results"></div>
-<div id="loadMoreWrap" class="load-more-wrap"></div>
-</section>
-</main><div id="settingsOverlay" class="overlay hidden">
-<aside class="settings">
-<div class="settings-header">
-<h2>Settings</h2>
-<button id="closeSettings" type="button">Close</button>
-</div><div class="settings-content"><section class="settings-group">
-<h3>Appearance</h3><label>
-Theme
-<select id="themeSelect">
-<option value="system">System</option>
-<option value="light">Light</option>
-<option value="dark">Dark</option>
-</select>
-</label><div class="button-row">
-<button id="themeEditorBtn" type="button">Custom theme</button>
-<button id="fontBtn" type="button">Font</button>
-</div><div class="button-row">
-<button id="wallpaperBtn" type="button">Wallpaper</button>
-<button id="musicBtn" type="button">Background music</button>
-</div>
-</section><section class="settings-group">
-<h3>History</h3><label class="check-row">
-<span>Save local history</span>
-<input id="historyEnabled" type="checkbox">
-</label><label>
-History limit
-<input id="historyLimit" type="number" min="10" max="1000">
-</label><div class="button-row">
-<button id="historyBtn" type="button">View history</button>
-<button id="clearHistoryBtn" type="button">Clear history</button>
-</div>
-</section><section class="settings-group">
-<h3>Results</h3><label>
-Loading
-<select id="loadingMode">
-<option value="infinite">Infinite scroll</option>
-<option value="loadmore">Load more</option>
-<option value="pages">Page-wise</option>
-</select>
-</label><label>
-Safe Search
-<select id="safeSearch">
-<option value="extreme">Extreme</option>
-<option value="normal">Normal</option>
-<option value="minimal">Minimal</option>
-<option value="truth">Truth</option>
-</select>
-</label><div class="button-row">
-<button id="resultsEditorBtn" type="button">Edit results page</button>
-</div>
-</section><section class="settings-group">
-<h3>Modes</h3><label>
-Active mode
-<select id="modeSelect"></select>
-</label><div class="button-row">
-<button id="createModeBtn" type="button">Create mode</button>
-<button id="modeHelpBtn" type="button">Tutorial</button>
-</div><button id="manageModesBtn" type="button">Manage modes</button>
+  <header class="header">
+    <a class="brand" href="/">SEErch<span>²</span></a>
 
-</section><section class="settings-group">
-<h3>Widgets</h3><div class="button-row">
-<button id="widgetCreatorBtn" type="button">Widget creator</button>
-<button id="scriptWidgetBtn" type="button">Import script.js</button>
-</div><button id="manageWidgetsBtn" type="button">Manage widgets</button>
+    <form id="searchForm" class="search-form">
+      <input
+        id="searchInput"
+        type="search"
+        placeholder="Search the web"
+        autocomplete="off"
+        aria-label="Search"
+      >
+      <button type="submit" aria-label="Search">Search</button>
+    </form>
+  </header>
 
-</section><section class="settings-group">
-<h3>Homepage</h3><button id="homepageEditorBtn" type="button">Customize homepage</button>
+  <main>
+    <nav id="tabs" class="tabs">
+      <button class="tab active" data-tab="web">Web</button>
+      <button class="tab" data-tab="images">Images</button>
+      <button class="tab" data-tab="videos">Videos</button>
+    </nav>
 
-</section><section class="settings-group">
-<h3>Custom CSS</h3><button id="cssEditorBtn" type="button">Edit custom CSS</button>
+    <section id="status" class="status"></section>
 
-</section><section class="settings-group">
-<h3>AI</h3><label class="check-row">
-<span>Enable AI</span>
-<input id="aiEnabled" type="checkbox">
-</label><label>
-Provider
-<input id="aiProvider" type="text">
-</label><label>
-Endpoint
-<input id="aiEndpoint" type="url">
-</label><label>
-Model
-<input id="aiModel" type="text">
-</label><label>
-API key
-<input id="aiKey" type="password">
-</label><button id="saveAI" type="button">Save AI settings</button>
+    <section id="results" class="results"></section>
 
-</section><section class="settings-group">
-<h3>Weather</h3><label>
-City
-<input id="weatherCity" type="text" placeholder="Enter a city">
-</label><div class="button-row">
-<button id="findWeather" type="button">Find</button>
-<button id="useLocation" type="button">Use my location</button>
-</div>
-</section><section class="settings-group">
-<h3>Stocks</h3><label>
-Provider
-<select id="stockProvider">
-<option value="alphavantage">Alpha Vantage</option>
-</select>
-</label><label>
-API key
-<input id="stockKey" type="password">
-</label><label>
-Symbols
-<input id="stockSymbols" type="text" placeholder="AAPL, MSFT, NVDA">
-</label><button id="saveStocks" type="button">Save stocks</button>
+    <div id="loading" class="loading">Loading...</div>
+  </main>
 
-</section><section class="settings-group">
-<h3>Easter eggs</h3><label class="check-row">
-<span>Enable Easter eggs</span>
-<input id="easterEggs" type="checkbox">
-</label>
-</section><section class="settings-group">
-<h3>Backup</h3><div class="button-row">
-<button id="exportSettings" type="button">Export</button>
-<button id="importSettings" type="button">Import</button>
-</div><input id="settingsFile" type="file" accept=".json" hidden>
-</section></div>
-</aside>
-</div><div id="modal" class="modal hidden"></div>
-<div id="toast" class="toast hidden"></div><script src="app.js"></script></body>
+  <script src="app.js"></script>
+</body>
 </html>
