@@ -1,4 +1,5 @@
-const API_URL = "https://seerchsqapi.darkyproton.workers.dev";
+// const API_URL = "https://seerchsqapi.darkyproton.workers.dev";
+const API_URL = "https://see-api-ulzn.onrender.com"; 
 
 const searchForm = document.getElementById("searchForm");
 const searchInput = document.getElementById("searchInput");
