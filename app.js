@@ -1,5 +1,5 @@
 // const API_URL = "https://seerchsqapi.darkyproton.workers.dev";
-const API_URL = "https://see-api-ulzn.onrender.com"; 
+const API_URL = "https://see-api-ulzn.onrender.com";
 
 const searchForm = document.getElementById("searchForm");
 const searchInput = document.getElementById("searchInput");
@@ -11,6 +11,7 @@ const loading = document.getElementById("loading");
 let currentQuery = "";
 let currentTab = "web";
 let currentResults = [];
+let searchController = null;
 
 searchForm.addEventListener("submit", function (event) {
   event.preventDefault();
@@ -41,14 +42,30 @@ async function search(query) {
   currentQuery = query;
   searchInput.value = query;
 
+  if (searchController) {
+    searchController.abort();
+  }
+
+  searchController = new AbortController();
+
   setLoading(true);
   status.textContent = "";
   results.innerHTML = "";
 
-  const url = `${API_URL}/search?q=${encodeURIComponent(query)}&page=1&limit=20`;
+  const url =
+    `${API_URL}/search` +
+    `?q=${encodeURIComponent(query)}` +
+    `&page=1` +
+    `&limit=20`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Accept: "application/json"
+      },
+      signal: searchController.signal
+    });
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -56,28 +73,43 @@ async function search(query) {
 
     const data = await response.json();
 
-    currentResults = Array.isArray(data.results)
-      ? data.results
-      : [];
+    if (!data || !Array.isArray(data.results)) {
+      throw new Error("Invalid API response");
+    }
 
-    status.textContent = `${currentResults.length} results`;
+    currentResults = data.results.filter(function (item) {
+      return item && typeof item === "object";
+    });
+
+    if (typeof data.query === "string" && data.query.trim()) {
+      currentQuery = data.query.trim();
+      searchInput.value = currentQuery;
+    }
+
+    status.textContent =
+      `${currentResults.length} ` +
+      (currentResults.length === 1 ? "result" : "results");
 
     renderResults();
 
     history.replaceState(
       null,
       "",
-      `?q=${encodeURIComponent(query)}`
+      `?q=${encodeURIComponent(currentQuery)}`
     );
   } catch (error) {
-    console.error(error);
+    if (error.name === "AbortError") {
+      return;
+    }
+
+    console.error("SEErch² search error:", error);
 
     currentResults = [];
     status.textContent = "";
 
     results.innerHTML = `
       <div class="error">
-        Search failed. Check that the SEErch² API is running and reachable.
+        Search failed. Check that the SEErch² API is reachable.
       </div>
     `;
   } finally {
@@ -96,19 +128,19 @@ function renderResults() {
     return;
   }
 
-  if (currentTab === "web") {
-    renderWebResults();
-    return;
-  }
+  switch (currentTab) {
+    case "images":
+      renderImages();
+      break;
 
-  if (currentTab === "images") {
-    renderImages();
-    return;
-  }
+    case "videos":
+      renderVideos();
+      break;
 
-  if (currentTab === "videos") {
-    renderVideos();
-    return;
+    case "web":
+    default:
+      renderWebResults();
+      break;
   }
 }
 
@@ -131,26 +163,42 @@ function renderWebResults() {
 
     const url = document.createElement("a");
     url.className = "result-url";
-    url.href = item.url || "#";
+    url.href = safeUrl(item.url);
     url.target = "_blank";
     url.rel = "noopener noreferrer";
-    url.textContent = item.url || "";
+    url.textContent = displayUrl(item.url);
 
     const title = document.createElement("a");
     title.className = "result-title";
-    title.href = item.url || "#";
+    title.href = safeUrl(item.url);
     title.target = "_blank";
     title.rel = "noopener noreferrer";
-    title.textContent = item.title || item.url || "Untitled";
+    title.textContent =
+      item.title ||
+      item.url ||
+      "Untitled result";
 
     const description = document.createElement("div");
     description.className = "result-description";
     description.textContent =
-      item.description || "No description available.";
+      item.description ||
+      "No description available.";
+
+    const score = document.createElement("div");
+    score.className = "result-score";
+
+    if (typeof item.score === "number") {
+      score.textContent =
+        `Score: ${formatScore(item.score)}`;
+    }
 
     article.appendChild(url);
     article.appendChild(title);
     article.appendChild(description);
+
+    if (typeof item.score === "number") {
+      article.appendChild(score);
+    }
 
     results.appendChild(article);
   });
@@ -180,13 +228,17 @@ function renderImages() {
 
     const image = document.createElement("img");
     image.src = item.url;
-    image.alt = item.alt || item.title || "";
+    image.alt =
+      item.alt ||
+      item.title ||
+      item.sourceTitle ||
+      "SEErch² image";
     image.loading = "lazy";
     image.decoding = "async";
     image.referrerPolicy = "no-referrer";
 
     image.addEventListener("error", function () {
-      card.style.display = "none";
+      card.remove();
     });
 
     const info = document.createElement("div");
@@ -202,11 +254,21 @@ function renderImages() {
 
     info.appendChild(title);
 
+    if (item.sourceTitle || item.sourceUrl) {
+      const source = document.createElement("div");
+      source.className = "image-source";
+      source.textContent =
+        item.sourceTitle ||
+        displayUrl(item.sourceUrl);
+
+      info.appendChild(source);
+    }
+
     card.appendChild(image);
     card.appendChild(info);
 
     card.addEventListener("click", function () {
-      window.open(item.url, "_blank", "noopener,noreferrer");
+      openUrl(item.url);
     });
 
     grid.appendChild(card);
@@ -237,7 +299,7 @@ function renderVideos() {
     const card = document.createElement("a");
 
     card.className = "video-card";
-    card.href = item.url || "#";
+    card.href = safeUrl(item.url);
     card.target = "_blank";
     card.rel = "noopener noreferrer";
 
@@ -248,26 +310,20 @@ function renderVideos() {
       const image = document.createElement("img");
 
       image.src = item.thumbnail;
-      image.alt = item.title || "Video thumbnail";
+      image.alt =
+        item.title ||
+        "Video thumbnail";
       image.loading = "lazy";
       image.decoding = "async";
       image.referrerPolicy = "no-referrer";
 
       image.addEventListener("error", function () {
-        thumbnail.innerHTML = `
-          <div class="video-placeholder">
-            Video
-          </div>
-        `;
+        showVideoPlaceholder(thumbnail);
       });
 
       thumbnail.appendChild(image);
     } else {
-      thumbnail.innerHTML = `
-        <div class="video-placeholder">
-          Video
-        </div>
-      `;
+      showVideoPlaceholder(thumbnail);
     }
 
     const info = document.createElement("div");
@@ -281,6 +337,13 @@ function renderVideos() {
       "Video";
 
     info.appendChild(title);
+
+    if (item.type) {
+      const type = document.createElement("div");
+      type.className = "video-type";
+      type.textContent = item.type;
+      info.appendChild(type);
+    }
 
     card.appendChild(thumbnail);
     card.appendChild(info);
@@ -300,14 +363,18 @@ function collectImages() {
     }
 
     result.images.forEach(function (image) {
-      if (!image || !image.url) {
+      if (
+        !image ||
+        typeof image !== "object" ||
+        !image.url
+      ) {
         return;
       }
 
       output.push({
         ...image,
-        sourceUrl: result.url,
-        sourceTitle: result.title,
+        sourceUrl: result.url || "",
+        sourceTitle: result.title || "",
         resultId: result.id
       });
     });
@@ -325,20 +392,93 @@ function collectVideos() {
     }
 
     result.videos.forEach(function (video) {
-      if (!video || !video.url) {
+      if (
+        !video ||
+        typeof video !== "object" ||
+        !video.url
+      ) {
         return;
       }
 
       output.push({
         ...video,
-        sourceUrl: result.url,
-        sourceTitle: result.title,
+        sourceUrl: result.url || "",
+        sourceTitle: result.title || "",
         resultId: result.id
       });
     });
   });
 
   return output;
+}
+
+function safeUrl(url) {
+  if (!url || typeof url !== "string") {
+    return "#";
+  }
+
+  try {
+    const parsed = new URL(url);
+
+    if (
+      parsed.protocol !== "http:" &&
+      parsed.protocol !== "https:"
+    ) {
+      return "#";
+    }
+
+    return parsed.href;
+  } catch {
+    return "#";
+  }
+}
+
+function displayUrl(url) {
+  if (!url || typeof url !== "string") {
+    return "";
+  }
+
+  try {
+    const parsed = new URL(url);
+
+    return (
+      parsed.hostname +
+      (parsed.pathname !== "/" ? parsed.pathname : "")
+    );
+  } catch {
+    return url;
+  }
+}
+
+function openUrl(url) {
+  const safe = safeUrl(url);
+
+  if (safe === "#") {
+    return;
+  }
+
+  window.open(
+    safe,
+    "_blank",
+    "noopener,noreferrer"
+  );
+}
+
+function formatScore(score) {
+  if (!Number.isFinite(score)) {
+    return "";
+  }
+
+  return Number(score).toFixed(2);
+}
+
+function showVideoPlaceholder(container) {
+  container.innerHTML = `
+    <div class="video-placeholder">
+      <span>▶</span>
+      <span>Video</span>
+    </div>
+  `;
 }
 
 function setLoading(value) {
