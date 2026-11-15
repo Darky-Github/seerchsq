@@ -1,0 +1,17 @@
+
+[
+  {
+    "title": "A New UI Is Planned for SEErch²",
+    "date": "2026-11-15",
+    "category": "Development",
+    "content": "We're planning a new user interface for SEErch²! The upcoming redesign aims to make the search experience cleaner, more intuitive and easier to navigate, while introducing improvements to the homepage, navigation, announcements and overall visual design. Stay tuned for more updates.",
+    "pinned": true
+  },
+  {
+    "title": "Introducing a Dedicated Ranking Service",
+    "date": "2026-11-15",
+    "category": "Infrastructure",
+    "content": "SEErch² is moving towards a new, dedicated ranking service. As part of this transition, the legacy ranking system built into our existing search API will be retired. Ranking will become a separate service, allowing us to develop, experiment with and improve search result ordering independently of the main search API. This is an important step towards a more modular and flexible search architecture.",
+    "pinned": false
+  }
+]
