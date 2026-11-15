@@ -3,38 +3,164 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SEErch²</title>
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="SEErch² — an independent search engine for discovering the web.">
+  <title>SEErch² — Search the Web</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="header">
-    <a class="brand" href="/">SEErch<span>²</span></a>
+    <a class="brand" href="#" data-page="home" aria-label="SEErch² Home">
+      SEErch<span>²</span>
+    </a>
 
-    <form id="searchForm" class="search-form">
-      <input
-        id="searchInput"
-        type="search"
-        placeholder="Search the web"
-        autocomplete="off"
-        aria-label="Search"
-      >
-      <button type="submit" aria-label="Search">Search</button>
-    </form>
+    <nav class="main-nav" aria-label="Main navigation">
+      <button class="nav-link active" data-page="home">Home</button>
+      <button class="nav-link" data-page="search">Search</button>
+      <button class="nav-link" data-page="announcements">Announcements</button>
+      <button class="nav-link" data-page="about">About</button>
+    </nav>
+
+    <button id="themeToggle" class="theme-toggle" type="button"
+      aria-label="Switch to dark mode" title="Toggle theme">
+      <span id="themeIcon" aria-hidden="true">☾</span>
+    </button>
   </header>
 
   <main>
-    <nav id="tabs" class="tabs">
-      <button class="tab active" data-tab="web">Web</button>
-      <button class="tab" data-tab="images">Images</button>
-      <button class="tab" data-tab="videos">Videos</button>
-    </nav>
+    <section id="homePage" class="page active">
+      <div class="home-hero">
+        <div class="hero-mark">SEErch<span>²</span></div>
+        <p class="hero-subtitle">Discover more. Search differently.</p>
 
-    <section id="status" class="status"></section>
+        <form id="homeSearchForm" class="search-form home-search-form">
+          <input
+            id="homeSearchInput"
+            type="search"
+            placeholder="What are you looking for?"
+            autocomplete="off"
+            aria-label="Search the web"
+          >
+          <button type="submit">Search</button>
+        </form>
 
-    <section id="results" class="results"></section>
+        <p class="home-caption">
+          An independent search project built around flexibility and discovery.
+        </p>
+      </div>
 
-    <div id="loading" class="loading">Loading...</div>
+      <section class="home-announcements">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">What's happening</p>
+            <h2>Latest announcements</h2>
+          </div>
+          <button class="text-link" data-page="announcements">
+            View all →
+          </button>
+        </div>
+
+        <div id="announcementPreview" class="announcement-list">
+          <p class="muted">Loading announcements...</p>
+        </div>
+      </section>
+    </section>
+
+    <section id="searchPage" class="page">
+      <div class="search-page-top">
+        <form id="searchForm" class="search-form">
+          <input
+            id="searchInput"
+            type="search"
+            placeholder="Search the web"
+            autocomplete="off"
+            aria-label="Search the web"
+          >
+          <button type="submit">Search</button>
+        </form>
+
+        <div class="search-options">
+          <label class="safe-search-control" for="safeSearchToggle">
+            <input type="checkbox" id="safeSearchToggle" checked>
+            <span class="safe-search-switch" aria-hidden="true"></span>
+            <span class="safe-search-label">Strict Safe Search</span>
+          </label>
+          <span class="safe-search-description">
+            Applies to web, images and videos. Standard filtering remains enabled.
+          </span>
+        </div>
+      </div>
+
+      <nav id="tabs" class="tabs" aria-label="Search result types">
+        <button class="tab active" data-tab="web" type="button">Web</button>
+        <button class="tab" data-tab="images" type="button">Images</button>
+        <button class="tab" data-tab="videos" type="button">Videos</button>
+      </nav>
+
+      <section id="status" class="status" aria-live="polite"></section>
+      <section id="results" class="results"></section>
+      <div id="loading" class="loading" hidden>Searching...</div>
+    </section>
+
+    <section id="announcementsPage" class="page content-page">
+      <div class="page-heading">
+        <p class="eyebrow">Project updates</p>
+        <h1>Announcements</h1>
+        <p>News, development updates and important information about SEErch².</p>
+      </div>
+
+      <div id="announcementsList" class="announcement-list">
+        <p class="muted">Loading announcements...</p>
+      </div>
+    </section>
+
+    <section id="aboutPage" class="page content-page">
+      <div class="page-heading">
+        <p class="eyebrow">The project</p>
+        <h1>About SEErch²</h1>
+        <p>An independent search engine project focused on making web discovery more flexible, customizable and accessible.</p>
+      </div>
+
+      <div class="about-content">
+        <section class="about-section">
+          <h2>Our idea</h2>
+          <p>
+            SEErch² is an experimental search project. Its goal is to provide
+            another way to explore the web while giving users more control
+            over their search experience.
+          </p>
+        </section>
+
+        <section class="about-section">
+          <h2>What we're working on</h2>
+          <ul class="feature-list">
+            <li>Web, image and video discovery.</li>
+            <li>Flexible search result ranking.</li>
+            <li>Safe Search controls across result types.</li>
+            <li>A simple, lightweight and responsive interface.</li>
+            <li>Continued improvements to search quality and usability.</li>
+          </ul>
+        </section>
+
+        <section class="about-section">
+          <h2>Independent by design</h2>
+          <p>
+            SEErch² is an evolving project. Features and services may change
+            as development continues.
+          </p>
+        </section>
+
+        <button class="primary-button" data-page="search" type="button">
+          Start searching
+        </button>
+      </div>
+    </section>
   </main>
+
+  <footer class="footer">
+    <span>SEErch<span class="brand-sup">²</span></span>
+    <span>Independent search project</span>
+  </footer>
 
   <script src="app.js"></script>
 </body>
